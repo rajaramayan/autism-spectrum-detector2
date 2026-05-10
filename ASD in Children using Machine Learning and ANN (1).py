@@ -1,6 +1,8 @@
 # ==========================================
 # 1. IMPORT LIBRARIES
 # ==========================================
+import os
+import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,13 +20,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.neural_network import MLPClassifier
 
 from imblearn.over_sampling import SMOTE
 
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+MODELS_DIR = "models"
 
 # ==========================================
 # 2. LOAD DATASET
@@ -41,14 +42,25 @@ print(df.describe())
 df.drop_duplicates(inplace=True)
 df.fillna(df.mode().iloc[0], inplace=True)
 
-# Encode categorical variables
-le = LabelEncoder()
-for col in df.select_dtypes(include=['object']).columns:
-    df[col] = le.fit_transform(df[col])
+numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+
+# Encode categorical variables (keep per-column encoders)
+le_dict = {}
+df_encoded = df.copy()
+for col in categorical_cols:
+    le = LabelEncoder()
+    df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+    le_dict[col] = le
+
+for col in df_encoded.columns:
+    df_encoded[col] = pd.to_numeric(df_encoded[col], errors='coerce')
+df_encoded.fillna(df_encoded.mean(), inplace=True)
 
 # Split features and target
-X = df.iloc[:, :-1]
-y = df.iloc[:, -1]
+X = df_encoded.iloc[:, :-1]
+y = df_encoded.iloc[:, -1]
+feature_names = X.columns.tolist()
 
 # ==========================================
 # 4. TRAIN-TEST SPLIT
@@ -71,147 +83,194 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # ==========================================
-# 7. DEFINE MODELS
+# 7. DEFINE MODELS (same config as Streamlit app)
 # ==========================================
 models = {
     "Logistic Regression": LogisticRegression(max_iter=1000),
-    "Decision Tree": DecisionTreeClassifier(),
-    "Random Forest": RandomForestClassifier(),
-    "KNN": KNeighborsClassifier(),
-    "SVM (Linear)": SVC(kernel='linear', probability=True),
-    "SVM (RBF)": SVC(kernel='rbf', probability=True),
-    "Naive Bayes": GaussianNB(),
-    "LDA": LinearDiscriminantAnalysis()
+    "Decision Tree": DecisionTreeClassifier(
+        max_depth=5, min_samples_split=20, min_samples_leaf=10,
+        ccp_alpha=0.005, random_state=42
+    ),
+    "Random Forest": RandomForestClassifier(
+        n_estimators=200, max_depth=10, min_samples_split=15,
+        min_samples_leaf=6, max_features='sqrt',
+        min_impurity_decrease=0.001, random_state=42
+    ),
+    "KNN": KNeighborsClassifier(n_neighbors=51, weights='uniform', metric='minkowski', p=1),
+    "SVM (Poly)": SVC(kernel='poly', degree=2, C=0.1, gamma='scale', probability=True),
+    "SVM (RBF)": SVC(kernel='rbf', C=0.1, gamma='scale', probability=True),
+    "Naive Bayes": GaussianNB(var_smoothing=1e-8),
+    "QDA": QuadraticDiscriminantAnalysis(reg_param=0.7)
 }
 
 # ==========================================
 # 8. TRAIN + EVALUATE CLASSICAL MODELS
 # ==========================================
 results = []
-roc_data = []   # store ROC info
+roc_data = []
+trained_models = {}
+
+columns = ["Model", "Train Accuracy", "Accuracy", "Gap",
+           "Precision", "Recall", "Specificity", "F1 Score", "ROC-AUC", "Log Loss"]
 
 for name, model in models.items():
     print(f"\nTraining {name}...")
-
     model.fit(X_train_scaled, y_train)
+    trained_models[name] = model
 
+    train_acc = accuracy_score(y_train, model.predict(X_train_scaled))
     y_pred = model.predict(X_test_scaled)
     y_prob = model.predict_proba(X_test_scaled)[:, 1]
 
-    acc = accuracy_score(y_test, y_pred)
+    acc  = accuracy_score(y_test, y_pred)
     prec = precision_score(y_test, y_pred)
-    rec = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    roc_auc = roc_auc_score(y_test, y_prob)
-    logloss = log_loss(y_test, y_prob)
-
+    rec  = recall_score(y_test, y_pred)
+    f1   = f1_score(y_test, y_pred)
+    roc_auc  = roc_auc_score(y_test, y_prob)
+    logloss  = log_loss(y_test, y_prob)
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
     specificity = tn / (tn + fp)
+    gap = train_acc - acc
 
-    results.append([name, acc, prec, rec, specificity, f1, roc_auc, logloss])
+    results.append([name, train_acc, acc, gap, prec, rec, specificity, f1, roc_auc, logloss])
 
-    # Store ROC
     fpr, tpr, _ = roc_curve(y_test, y_prob)
     roc_data.append((name, fpr, tpr, roc_auc))
 
 # ==========================================
-# 9. CREATE RESULTS DATAFRAME
+# 9. ANN MODEL (MLPClassifier — same as Streamlit)
 # ==========================================
-columns = ["Model", "Accuracy", "Precision", "Recall",
-           "Specificity", "F1 Score", "ROC-AUC", "Log Loss"]
+print("\nTraining ANN (MLPClassifier)...")
+ann = MLPClassifier(
+    hidden_layer_sizes=(32, 16),
+    activation='relu',
+    solver='adam',
+    max_iter=200,
+    random_state=42
+)
+ann.fit(X_train_scaled, y_train)
 
-results_df = pd.DataFrame(results, columns=columns)
+train_acc_ann = accuracy_score(y_train, ann.predict(X_train_scaled))
+y_prob_ann = ann.predict_proba(X_test_scaled)[:, 1]
+y_pred_ann = ann.predict(X_test_scaled)
 
-# ==========================================
-# 10. ANN MODEL
-# ==========================================
-ann = Sequential([
-    Dense(32, activation='relu', input_shape=(X_train_scaled.shape[1],)),
-    Dense(16, activation='relu'),
-    Dense(1, activation='sigmoid')
-])
-
-ann.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-history = ann.fit(X_train_scaled, y_train,
-                  epochs=50,
-                  batch_size=16,
-                  validation_split=0.2,
-                  verbose=0)
-
-# ANN Evaluation
-y_prob_ann = ann.predict(X_test_scaled).flatten()
-y_pred_ann = (y_prob_ann > 0.5).astype(int)
-
-acc = accuracy_score(y_test, y_pred_ann)
+acc  = accuracy_score(y_test, y_pred_ann)
 prec = precision_score(y_test, y_pred_ann)
-rec = recall_score(y_test, y_pred_ann)
-f1 = f1_score(y_test, y_pred_ann)
-roc_auc = roc_auc_score(y_test, y_prob_ann)
-logloss = log_loss(y_test, y_prob_ann)
-
+rec  = recall_score(y_test, y_pred_ann)
+f1   = f1_score(y_test, y_pred_ann)
+roc_auc  = roc_auc_score(y_test, y_prob_ann)
+logloss  = log_loss(y_test, y_prob_ann)
 tn, fp, fn, tp = confusion_matrix(y_test, y_pred_ann).ravel()
 specificity = tn / (tn + fp)
+gap_ann = train_acc_ann - acc
 
-# Add ANN results
-results_df.loc[len(results_df)] = [
-    "ANN", acc, prec, rec, specificity, f1, roc_auc, logloss
-]
+results.append(["ANN", train_acc_ann, acc, gap_ann, prec, rec, specificity, f1, roc_auc, logloss])
 
-# Store ANN ROC
 fpr_ann, tpr_ann, _ = roc_curve(y_test, y_prob_ann)
 roc_data.append(("ANN", fpr_ann, tpr_ann, roc_auc))
 
-print("\nFinal Model Comparison:\n", results_df)
+# ==========================================
+# 10. CREATE RESULTS DATAFRAME
+# ==========================================
+results_df = pd.DataFrame(results, columns=columns)
+results_df_sorted = results_df.sort_values(by="ROC-AUC", ascending=False)
+
+print("\nFinal Model Comparison:\n")
+print(results_df_sorted.to_string(index=False))
 
 # ==========================================
-# 11. ROC CURVE (ALL MODELS INCLUDING ANN)
+# 11. OVERFITTING ANALYSIS
+# ==========================================
+def gap_status(gap):
+    if gap < 0.02:   return "No overfitting"
+    if gap < 0.05:   return "Mild — acceptable"
+    if gap < 0.10:   return "Moderate — needs justification"
+    return "Severe overfitting"
+
+gap_df = results_df_sorted[["Model", "Train Accuracy", "Accuracy", "Gap"]].copy()
+gap_df["Status"] = gap_df["Gap"].apply(gap_status)
+print("\nOverfitting Analysis:\n")
+print(gap_df.to_string(index=False))
+
+# ==========================================
+# 12. ROC CURVE (ALL MODELS)
 # ==========================================
 plt.figure(figsize=(10, 8))
-
 for name, fpr, tpr, auc in roc_data:
-    plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.2f})")
-
-plt.plot([0,1], [0,1], 'k--')
+    plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.4f})", linewidth=2)
+plt.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate")
 plt.title("ROC Curve Comparison (All Models Including ANN)")
-plt.legend()
-plt.show()
-
-# ==========================================
-# 12. BAR PLOT (ALL MODELS INCLUDING ANN)
-# ==========================================
-results_df_sorted = results_df.sort_values(by="ROC-AUC", ascending=False)
-
-results_df_sorted.set_index("Model")[["Accuracy", "F1 Score", "ROC-AUC"]].plot(kind='bar')
-
-plt.title("Model Performance Comparison (All Models)")
-plt.xticks(rotation=45)
+plt.legend(loc='lower right')
+plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
 
 # ==========================================
-# 13. CONFUSION MATRIX (BEST MODEL)
+# 13. BAR PLOT — PERFORMANCE COMPARISON
+# ==========================================
+fig, ax = plt.subplots(figsize=(12, 6))
+results_df_sorted.set_index("Model")[["Accuracy", "F1 Score", "ROC-AUC"]].plot(kind='bar', ax=ax)
+ax.set_title("Model Performance Comparison (All Models)")
+ax.set_ylabel("Score")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# ==========================================
+# 14. CONFUSION MATRIX (BEST MODEL)
 # ==========================================
 best_model_name = results_df_sorted.iloc[0]["Model"]
 
 if best_model_name == "ANN":
     y_pred_best = y_pred_ann
 else:
-    best_model = models[best_model_name]
-    y_pred_best = best_model.predict(X_test_scaled)
+    y_pred_best = trained_models[best_model_name].predict(X_test_scaled)
 
 cm = confusion_matrix(y_test, y_pred_best)
-
-sns.heatmap(cm, annot=True, fmt='d')
-plt.title(f"Confusion Matrix - {best_model_name}")
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title(f"Confusion Matrix — {best_model_name}")
+plt.tight_layout()
 plt.show()
 
 # ==========================================
-# 14. FINAL BEST MODEL
+# 15. FINAL BEST MODEL SUMMARY
 # ==========================================
-best_model_final = results_df_sorted.iloc[0]
-
 print("\nBEST MODEL:")
-print(best_model_final)
+print(results_df_sorted.iloc[0])
+
+# ==========================================
+# 16. SAVE ALL MODELS & ARTIFACTS TO DISK
+# ==========================================
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+with open(os.path.join(MODELS_DIR, "trained_models.pkl"), "wb") as f:
+    pickle.dump(trained_models, f)
+
+with open(os.path.join(MODELS_DIR, "ann.pkl"), "wb") as f:
+    pickle.dump(ann, f)
+
+with open(os.path.join(MODELS_DIR, "scaler.pkl"), "wb") as f:
+    pickle.dump(scaler, f)
+
+with open(os.path.join(MODELS_DIR, "le_dict.pkl"), "wb") as f:
+    pickle.dump(le_dict, f)
+
+with open(os.path.join(MODELS_DIR, "results_df.pkl"), "wb") as f:
+    pickle.dump(results_df, f)
+
+with open(os.path.join(MODELS_DIR, "roc_data.pkl"), "wb") as f:
+    pickle.dump(roc_data, f)
+
+metadata = {
+    "feature_names": feature_names,
+    "numeric_cols": numeric_cols,
+    "categorical_cols": categorical_cols,
+}
+with open(os.path.join(MODELS_DIR, "metadata.pkl"), "wb") as f:
+    pickle.dump(metadata, f)
+
+print(f"\n✅ All models and artifacts saved to '{MODELS_DIR}/' folder.")
+print("   You can now run the Streamlit app — it will load these pre-trained models.")

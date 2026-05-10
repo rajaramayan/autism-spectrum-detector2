@@ -7,6 +7,8 @@ import pickle
 import os
 from pathlib import Path
 
+MODELS_DIR = "models"
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,
@@ -77,6 +79,43 @@ def prepare_data(df):
     df_encoded.fillna(df_encoded.mean(), inplace=True)
     
     return df_encoded, le_dict, numeric_cols, categorical_cols
+
+
+def pretrained_models_exist():
+    """Check if all required model files are present in the models/ folder"""
+    required = ["trained_models.pkl", "ann.pkl", "scaler.pkl",
+                "le_dict.pkl", "results_df.pkl", "roc_data.pkl", "metadata.pkl"]
+    return all(os.path.exists(os.path.join(MODELS_DIR, f)) for f in required)
+
+
+def load_pretrained_models():
+    """Load all models and artifacts saved by the local training script"""
+    def _load(fname):
+        with open(os.path.join(MODELS_DIR, fname), "rb") as f:
+            return pickle.load(f)
+
+    trained_models = _load("trained_models.pkl")
+    ann            = _load("ann.pkl")
+    scaler         = _load("scaler.pkl")
+    le_dict        = _load("le_dict.pkl")
+    results_df     = _load("results_df.pkl")
+    roc_data       = _load("roc_data.pkl")
+    metadata       = _load("metadata.pkl")
+
+    st.session_state.trained_models  = trained_models
+    st.session_state.ann             = ann
+    st.session_state.scaler          = scaler
+    st.session_state.le_dict         = le_dict
+    st.session_state.results_df      = results_df
+    st.session_state.roc_data        = roc_data
+    st.session_state.feature_names   = metadata["feature_names"]
+    st.session_state.numeric_cols    = metadata["numeric_cols"]
+    st.session_state.categorical_cols = metadata["categorical_cols"]
+
+    # Load encoded data for slider ranges
+    df = load_data()
+    df_encoded, _, _, _ = prepare_data(df)
+    st.session_state.df_encoded = df_encoded
 
 def train_models(X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled):
     """Train all ML models"""
@@ -201,18 +240,25 @@ if page == "🏠 Home":
     
     with col2:
         st.success("""
-        ### ✅ Ready to Use!
+        ### ✅ Recommended Workflow
         
-        **Next Steps:**
-        1. Click **🤖 Model Training** to train models
-        2. Click **🔮 Make Prediction** to make predictions
-        3. Click **📊 Model Comparison** to see results
+        **Step 1 — Train Locally:**
+        Run the local training script to train and save all models:
+        ```
+        python "ASD in Children using Machine Learning and ANN (1).py"
+        ```
         
-        The app loads data on-demand for optimal performance.
+        **Step 2 — Load in App:**
+        Go to **🤖 Model Training** → click **📂 Load Pre-trained Models**
+        
+        **Step 3 — Predict & Compare:**
+        Use **🔮 Make Prediction** and **📊 Model Comparison**
+        
+        > You can also train directly in the browser as a fallback.
         """)
     
     st.markdown("---")
-    st.markdown("**💡 Tip:** Start with the Model Training tab to get predictions!")
+    st.markdown("**💡 Tip:** Run the local training script first, then load models via the Model Training tab!")
 
 
 # ==========================================
@@ -220,7 +266,28 @@ if page == "🏠 Home":
 # ==========================================
 elif page == "🤖 Model Training":
     st.subheader("🤖 Train Models")
-    
+
+    # ---- Load pre-trained models from disk (preferred workflow) ----
+    if pretrained_models_exist():
+        st.success(
+            f"✅ Pre-trained models found in `{MODELS_DIR}/` folder. "
+            "Load them instantly or re-train in-browser below."
+        )
+        if st.button("📂 Load Pre-trained Models", key="load_pretrained"):
+            with st.spinner("Loading pre-trained models..."):
+                load_pretrained_models()
+            st.success("✅ Pre-trained models loaded successfully!")
+        st.markdown("---")
+    else:
+        st.info(
+            "ℹ️ No pre-trained models found. "
+            "Run the local training script first to save models, "
+            "or use the **Train in Browser** button below."
+        )
+        st.markdown("---")
+
+    # ---- In-browser training (fallback) ----
+    st.markdown("#### Train in Browser")
     try:
         df = load_data()
         df_encoded, le_dict, numeric_cols, categorical_cols = prepare_data(df)
