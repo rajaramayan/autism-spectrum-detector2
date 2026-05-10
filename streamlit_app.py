@@ -1,0 +1,478 @@
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pickle
+import os
+from pathlib import Path
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, roc_auc_score, confusion_matrix,
+                             roc_curve, log_loss)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.neural_network import MLPClassifier
+
+from imblearn.over_sampling import SMOTE
+
+# Import TensorFlow only when needed (lazy loading)
+
+# Set page configuration
+st.set_page_config(
+    page_title="ASD Screening Prediction System",
+    page_icon="🧠",
+    layout="wide"
+)
+
+st.title("🧠 Autism Spectrum Disorder (ASD) Screening Prediction System")
+st.markdown("---")
+
+# Sidebar for navigation
+page = st.sidebar.radio(
+    "Select Page",
+    ["🏠 Home", "🤖 Model Training", "🔮 Make Prediction", "📊 Model Comparison"]
+)
+
+# ==========================================
+# UTILITY FUNCTIONS
+# ==========================================
+
+@st.cache_data
+def load_data():
+    """Load the CSV dataset - cached for performance"""
+    df = pd.read_csv("Autism_Screening_Data_Combined.csv")
+    return df
+
+@st.cache_data
+def prepare_data(df):
+    """Preprocess the data - cached for performance"""
+    df = df.drop_duplicates()
+    df = df.fillna(df.mode().iloc[0])
+    
+    # Identify numeric and categorical features
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+    
+    # Encode categorical variables
+    le_dict = {}
+    df_encoded = df.copy()
+    for col in categorical_cols:
+        le = LabelEncoder()
+        df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+        le_dict[col] = le
+    
+    # Ensure all columns are numeric
+    for col in df_encoded.columns:
+        df_encoded[col] = pd.to_numeric(df_encoded[col], errors='coerce')
+    
+    df_encoded.fillna(df_encoded.mean(), inplace=True)
+    
+    return df_encoded, le_dict, numeric_cols, categorical_cols
+
+def train_models(X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled):
+    """Train all ML models"""
+    models = {
+        "Logistic Regression": LogisticRegression(max_iter=1000),
+        "Decision Tree": DecisionTreeClassifier(
+            max_depth=5,
+            min_samples_split=20,
+            min_samples_leaf=10,
+            ccp_alpha=0.005,
+            random_state=42
+        ),
+        "Random Forest": RandomForestClassifier(
+            n_estimators=200,
+            max_depth=10,
+            min_samples_split=15,
+            min_samples_leaf=6,
+            max_features='sqrt',
+            min_impurity_decrease=0.001,
+            random_state=42
+        ),
+        "KNN": KNeighborsClassifier(
+            n_neighbors=51,
+            weights='uniform',
+            metric='minkowski',
+            p=1
+        ),
+        "SVM (Poly)": SVC(kernel='poly', degree=2, C=0.1, gamma='scale', probability=True),
+        "SVM (RBF)": SVC(kernel='rbf', C=0.1, gamma='scale', probability=True),
+        "Naive Bayes": GaussianNB(var_smoothing=1e-8),
+        "QDA": QuadraticDiscriminantAnalysis(reg_param=0.7)
+    }
+    
+    results = []
+    roc_data = []
+    trained_models = {}
+    
+    for name, model in models.items():
+        model.fit(X_train_scaled, y_train)
+        trained_models[name] = model
+
+        train_acc = accuracy_score(y_train, model.predict(X_train_scaled))
+
+        y_pred = model.predict(X_test_scaled)
+        y_prob = model.predict_proba(X_test_scaled)[:, 1]
+        
+        acc = accuracy_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred)
+        rec = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+        roc_auc = roc_auc_score(y_test, y_prob)
+        logloss = log_loss(y_test, y_prob)
+        
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        specificity = tn / (tn + fp)
+        gap = train_acc - acc
+
+        results.append([name, train_acc, acc, gap, prec, rec, specificity, f1, roc_auc, logloss])
+        
+        fpr, tpr, _ = roc_curve(y_test, y_prob)
+        roc_data.append((name, fpr, tpr, roc_auc))
+    
+    results_df = pd.DataFrame(results, columns=["Model", "Train Accuracy", "Accuracy", "Gap",
+                                                "Precision", "Recall", "Specificity",
+                                                "F1 Score", "ROC-AUC", "Log Loss"])
+    
+    return results_df, roc_data, trained_models
+
+def train_ann(X_train_scaled, X_test_scaled, y_train, y_test):
+    """Train ANN model using sklearn MLPClassifier"""
+    ann = MLPClassifier(
+        hidden_layer_sizes=(32, 16),
+        activation='relu',
+        solver='adam',
+        max_iter=200,
+        random_state=42
+    )
+
+    ann.fit(X_train_scaled, y_train)
+
+    y_prob_ann = ann.predict_proba(X_test_scaled)[:, 1]
+    y_pred_ann = ann.predict(X_test_scaled)
+
+    train_acc = accuracy_score(y_train, ann.predict(X_train_scaled))
+
+    acc = accuracy_score(y_test, y_pred_ann)
+    prec = precision_score(y_test, y_pred_ann)
+    rec = recall_score(y_test, y_pred_ann)
+    f1 = f1_score(y_test, y_pred_ann)
+    roc_auc = roc_auc_score(y_test, y_prob_ann)
+    logloss = log_loss(y_test, y_prob_ann)
+
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred_ann).ravel()
+    specificity = tn / (tn + fp)
+    gap = train_acc - acc
+
+    fpr_ann, tpr_ann, _ = roc_curve(y_test, y_prob_ann)
+
+    return ann, [train_acc, acc, gap, prec, rec, specificity, f1, roc_auc, logloss], (fpr_ann, tpr_ann, roc_auc), None
+
+# ==========================================
+# PAGE 1: HOME
+# ==========================================
+if page == "🏠 Home":
+    st.subheader("Welcome to the ASD Screening Prediction System")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.info("""
+        ### About This Application
+        
+        This application uses **Machine Learning** and **Artificial Neural Networks (ANN)** 
+        to predict the likelihood of Autism Spectrum Disorder (ASD) based on screening data.
+        
+        **Features:**
+        - Train multiple ML models
+        - Compare model performance
+        - Make predictions on new data
+        - Visualize model performance metrics
+        """)
+    
+    with col2:
+        st.success("""
+        ### ✅ Ready to Use!
+        
+        **Next Steps:**
+        1. Click **🤖 Model Training** to train models
+        2. Click **🔮 Make Prediction** to make predictions
+        3. Click **📊 Model Comparison** to see results
+        
+        The app loads data on-demand for optimal performance.
+        """)
+    
+    st.markdown("---")
+    st.markdown("**💡 Tip:** Start with the Model Training tab to get predictions!")
+
+
+# ==========================================
+# PAGE 2: MODEL TRAINING
+# ==========================================
+elif page == "🤖 Model Training":
+    st.subheader("🤖 Train Models")
+    
+    try:
+        df = load_data()
+        df_encoded, le_dict, numeric_cols, categorical_cols = prepare_data(df)
+        
+        # Split features and target
+        X = df_encoded.iloc[:, :-1]
+        y = df_encoded.iloc[:, -1]
+        
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+        
+        # Apply SMOTE
+        smote = SMOTE(random_state=42)
+        X_train, y_train = smote.fit_resample(X_train, y_train)
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        if st.button("🚀 Train All Models", key="train_button"):
+            with st.spinner("Training models... This may take a moment..."):
+                # Train classical models
+                results_df, roc_data, trained_models = train_models(
+                    X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled
+                )
+                
+                # Train ANN
+                ann, ann_metrics, ann_roc, history = train_ann(
+                    X_train_scaled, X_test_scaled, y_train, y_test
+                )
+                
+                # Add ANN to results
+                results_df.loc[len(results_df)] = [
+                    "ANN", ann_metrics[0], ann_metrics[1], ann_metrics[2],
+                    ann_metrics[3], ann_metrics[4], ann_metrics[5],
+                    ann_metrics[6], ann_metrics[7], ann_metrics[8]
+                ]
+                
+                roc_data.append(("ANN", ann_roc[0], ann_roc[1], ann_roc[2]))
+                
+                st.success("✅ Training completed!")
+                
+                # Store in session state
+                st.session_state.results_df = results_df
+                st.session_state.roc_data = roc_data
+                st.session_state.trained_models = trained_models
+                st.session_state.ann = ann
+                st.session_state.scaler = scaler
+                st.session_state.le_dict = le_dict
+                st.session_state.feature_names = X.columns.tolist()
+                st.session_state.numeric_cols = numeric_cols
+                st.session_state.categorical_cols = categorical_cols
+                st.session_state.df_encoded = df_encoded
+        
+        # Display results if available
+        if 'results_df' in st.session_state:
+            st.subheader("📈 Model Performance Results")
+            
+            results_sorted = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+            st.dataframe(results_sorted.style.highlight_max(axis=0), use_container_width=True)
+            
+            # Best model
+            best_model = results_sorted.iloc[0]
+            st.success(f"🏆 Best Model: **{best_model['Model']}** with ROC-AUC: {best_model['ROC-AUC']:.4f}")
+
+            # Overfitting Gap Table
+            st.subheader("📊 Overfitting Analysis (Train vs Test Accuracy Gap)")
+            gap_df = results_sorted[["Model", "Train Accuracy", "Accuracy", "Gap"]].copy()
+            gap_df = gap_df.rename(columns={"Accuracy": "Test Accuracy"})
+
+            def gap_status(gap):
+                if gap < 0.02:
+                    return "✅ No overfitting"
+                elif gap < 0.05:
+                    return "✅ Mild — acceptable"
+                elif gap < 0.10:
+                    return "⚠️ Moderate — needs justification"
+                else:
+                    return "❌ Severe overfitting"
+
+            gap_df["Status"] = gap_df["Gap"].apply(gap_status)
+            gap_df["Train Accuracy"] = gap_df["Train Accuracy"].map("{:.6f}".format)
+            gap_df["Test Accuracy"] = gap_df["Test Accuracy"].map("{:.6f}".format)
+            gap_df["Gap"] = gap_df["Gap"].map("{:.6f}".format)
+            st.dataframe(gap_df, use_container_width=True)
+    
+    except Exception as e:
+        st.error(f"Error during training: {e}")
+
+# ==========================================
+# PAGE 3: MAKE PREDICTION
+# ==========================================
+elif page == "🔮 Make Prediction":
+    st.subheader("🔮 Make Prediction")
+    
+    if 'scaler' not in st.session_state or 'trained_models' not in st.session_state:
+        st.warning("⚠️ Please train the models first on the 'Model Training' page")
+    else:
+        try:
+            # Get feature names and data
+            feature_names = st.session_state.feature_names
+            df_encoded = st.session_state.df_encoded
+            numeric_cols = st.session_state.numeric_cols
+            categorical_cols = [col for col in st.session_state.categorical_cols if col != df_encoded.columns[-1]]
+            le_dict = st.session_state.le_dict
+            
+            st.write("Enter screening values for the patient:")
+            
+            # Create input form
+            user_input = {}
+            cols = st.columns(3)
+            
+            for idx, feature in enumerate(feature_names):
+                with cols[idx % 3]:
+                    # Get min/max from encoded data
+                    min_val = float(df_encoded[feature].min())
+                    max_val = float(df_encoded[feature].max())
+                    default_val = (min_val + max_val) / 2
+                    
+                    user_input[feature] = st.slider(
+                        f"{feature}",
+                        min_value=min_val,
+                        max_value=max_val,
+                        value=default_val,
+                        step=0.1
+                    )
+            
+            if st.button("🎯 Predict", key="predict_button"):
+                # Prepare input - convert to proper values
+                input_values = []
+                for f in feature_names:
+                    val = user_input[f]
+                    try:
+                        input_values.append(float(val))
+                    except:
+                        input_values.append(val)
+                
+                input_array = np.array(input_values).reshape(1, -1).astype(float)
+                input_scaled = st.session_state.scaler.transform(input_array)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Classical Model Predictions")
+                    # Get best classical model
+                    results_sorted = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+                    best_classical = results_sorted[results_sorted['Model'] != 'ANN'].iloc[0]
+                    
+                    best_model = st.session_state.trained_models[best_classical['Model']]
+                    prediction = best_model.predict(input_scaled)[0]
+                    probability = best_model.predict_proba(input_scaled)[0][1]
+                    
+                    st.write(f"**Model:** {best_classical['Model']}")
+                    st.write(f"**Prediction:** {'🔴 ASD Positive' if prediction == 1 else '🟢 ASD Negative'}")
+                    st.write(f"**Confidence:** {probability*100:.2f}%")
+                
+                with col2:
+                    st.subheader("ANN Model Prediction")
+                    ann_prob = st.session_state.ann.predict_proba(input_scaled)[0][1]
+                    ann_pred = 1 if ann_prob > 0.5 else 0
+                    
+                    st.write(f"**Model:** Artificial Neural Network")
+                    st.write(f"**Prediction:** {'🔴 ASD Positive' if ann_pred == 1 else '🟢 ASD Negative'}")
+                    st.write(f"**Confidence:** {ann_prob*100:.2f}%")
+        
+        except Exception as e:
+            st.error(f"Error during prediction: {str(e)}")
+            import traceback
+            st.error(f"Details: {traceback.format_exc()}")
+
+# ==========================================
+# PAGE 4: MODEL COMPARISON
+# ==========================================
+elif page == "📊 Model Comparison":
+    st.subheader("📊 Model Comparison & Visualization")
+    
+    if 'results_df' not in st.session_state:
+        st.warning("⚠️ Please train the models first on the 'Model Training' page")
+    else:
+        try:
+            results_df = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+            roc_data = st.session_state.roc_data
+            
+            # Tabs for different visualizations
+            tab1, tab2, tab3, tab4 = st.tabs(["Performance Metrics", "ROC Curves", "Bar Chart", "Model Ranking"])
+            
+            with tab1:
+                st.subheader("Detailed Metrics Table")
+                st.dataframe(results_df.style.highlight_max(axis=0), use_container_width=True)
+            
+            with tab2:
+                st.subheader("ROC Curve Comparison")
+                fig, ax = plt.subplots(figsize=(10, 8))
+                
+                for name, fpr, tpr, auc in roc_data:
+                    ax.plot(fpr, tpr, label=f"{name} (AUC={auc:.4f})", linewidth=2)
+                
+                ax.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
+                ax.set_xlabel("False Positive Rate", fontsize=12)
+                ax.set_ylabel("True Positive Rate", fontsize=12)
+                ax.set_title("ROC Curve Comparison (All Models)", fontsize=14, fontweight='bold')
+                ax.legend(loc='lower right')
+                ax.grid(alpha=0.3)
+                
+                st.pyplot(fig)
+            
+            with tab3:
+                st.subheader("Model Performance Comparison")
+                fig, ax = plt.subplots(figsize=(12, 6))
+                
+                metrics_to_plot = ["Accuracy", "F1 Score", "ROC-AUC"]
+                results_df.set_index("Model")[metrics_to_plot].plot(kind='bar', ax=ax)
+                
+                ax.set_title("Model Performance Comparison", fontsize=14, fontweight='bold')
+                ax.set_ylabel("Score", fontsize=12)
+                ax.set_xlabel("Model", fontsize=12)
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                
+                st.pyplot(fig)
+            
+            with tab4:
+                st.subheader("Model Ranking by ROC-AUC")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                
+                sorted_results = results_df.sort_values("ROC-AUC", ascending=True)
+                colors = ['#2ecc71' if i == len(sorted_results) - 1 else '#3498db' 
+                         for i in range(len(sorted_results))]
+                
+                ax.barh(sorted_results['Model'], sorted_results['ROC-AUC'], color=colors)
+                ax.set_xlabel("ROC-AUC Score", fontsize=12)
+                ax.set_title("Model Ranking by ROC-AUC", fontsize=14, fontweight='bold')
+                ax.set_xlim([0, 1])
+                
+                for i, v in enumerate(sorted_results['ROC-AUC']):
+                    ax.text(v + 0.02, i, f'{v:.4f}', va='center')
+                
+                st.pyplot(fig)
+        
+        except Exception as e:
+            st.error(f"Error during visualization: {e}")
+
+# ==========================================
+# FOOTER
+# ==========================================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center'>
+    <p style='font-size: 12px; color: gray;'>
+    Autism Spectrum Disorder Screening Prediction System | Machine Learning & ANN | Educational Purpose Only
+    </p>
+</div>
+""", unsafe_allow_html=True)
