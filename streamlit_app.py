@@ -112,10 +112,17 @@ def load_pretrained_models():
     st.session_state.numeric_cols    = metadata["numeric_cols"]
     st.session_state.categorical_cols = metadata["categorical_cols"]
 
-    # Load encoded data for slider ranges
+    # Load encoded data for slider ranges and re-derive test set
     df = load_data()
     df_encoded, _, _, _ = prepare_data(df)
     st.session_state.df_encoded = df_encoded
+
+    # Re-derive X_test_scaled and y_test using identical pipeline (fixed seed)
+    X = df_encoded.iloc[:, :-1]
+    y = df_encoded.iloc[:, -1]
+    _, X_test_raw, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    st.session_state.X_test_scaled = scaler.transform(X_test_raw)
+    st.session_state.y_test = y_test.values
 
 def train_models(X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled):
     """Train all ML models"""
@@ -343,6 +350,8 @@ elif page == "🤖 Model Training":
                 st.session_state.numeric_cols = numeric_cols
                 st.session_state.categorical_cols = categorical_cols
                 st.session_state.df_encoded = df_encoded
+                st.session_state.X_test_scaled = X_test_scaled
+                st.session_state.y_test = y_test.values
         
         # Display results if available
         if 'results_df' in st.session_state:
@@ -474,7 +483,7 @@ elif page == "📊 Model Comparison":
             roc_data = st.session_state.roc_data
             
             # Tabs for different visualizations
-            tab1, tab2, tab3, tab4 = st.tabs(["Performance Metrics", "ROC Curves", "Bar Chart", "Model Ranking"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs(["Performance Metrics", "ROC Curves", "Bar Chart", "Model Ranking", "Confusion Matrices"])
             
             with tab1:
                 st.subheader("Detailed Metrics Table")
@@ -528,6 +537,97 @@ elif page == "📊 Model Comparison":
                     ax.text(v + 0.02, i, f'{v:.4f}', va='center')
                 
                 st.pyplot(fig)
+
+            with tab5:
+                st.subheader("Confusion Matrices")
+
+                if 'X_test_scaled' not in st.session_state or 'y_test' not in st.session_state:
+                    st.warning("⚠️ Test set not available. Please re-load or re-train models.")
+                else:
+                    X_test_scaled = st.session_state.X_test_scaled
+                    y_test = st.session_state.y_test
+
+                    trained_models = st.session_state.trained_models
+                    ann = st.session_state.ann
+
+                    all_models = dict(trained_models)
+                    all_models["ANN"] = ann
+                    model_names = list(all_models.keys())
+
+                    view_mode = st.radio(
+                        "Display mode",
+                        ["Single model", "All models (grid)"],
+                        horizontal=True
+                    )
+
+                    def plot_cm(ax, y_true, y_pred, title, best=False):
+                        cm = confusion_matrix(y_true, y_pred)
+                        group_labels = ["TN", "FP", "FN", "TP"]
+                        group_counts = [f"{v}" for v in cm.flatten()]
+                        annot = np.array(
+                            [f"{lbl}\n{cnt}" for lbl, cnt in zip(group_labels, group_counts)]
+                        ).reshape(2, 2)
+                        cmap = "Greens" if best else "Blues"
+                        sns.heatmap(
+                            cm, annot=annot, fmt="", cmap=cmap, ax=ax,
+                            xticklabels=["Pred ASD−", "Pred ASD+"],
+                            yticklabels=["Actual ASD−", "Actual ASD+"],
+                            linewidths=0.5, cbar=False
+                        )
+                        tn, fp, fn, tp = cm.ravel()
+                        acc = (tn + tp) / cm.sum()
+                        rec = tp / (tp + fn) if (tp + fn) > 0 else 0
+                        border = " ★" if best else ""
+                        ax.set_title(f"{title}{border}\nAcc={acc:.2%}  Recall={rec:.2%}",
+                                     fontsize=9, fontweight='bold' if best else 'normal')
+                        ax.set_xlabel("Predicted", fontsize=8)
+                        ax.set_ylabel("Actual", fontsize=8)
+
+                    best_model_name = results_df.iloc[0]["Model"]
+
+                    if view_mode == "Single model":
+                        selected = st.selectbox("Select model", model_names,
+                                                index=model_names.index(best_model_name)
+                                                if best_model_name in model_names else 0)
+                        y_pred = all_models[selected].predict(X_test_scaled)
+                        fig, ax = plt.subplots(figsize=(5, 4))
+                        plot_cm(ax, y_test, y_pred, selected, best=(selected == best_model_name))
+                        plt.tight_layout()
+                        st.pyplot(fig)
+
+                        # Derived metrics table
+                        cm = confusion_matrix(y_test, y_pred)
+                        tn, fp, fn, tp = cm.ravel()
+                        st.markdown(f"""
+| Metric | Value |
+|---|---|
+| True Negatives (TN) | {tn} |
+| False Positives (FP) | {fp} |
+| False Negatives (FN) | {fn} |
+| True Positives (TP) | {tp} |
+| Accuracy | {(tn+tp)/cm.sum():.4f} |
+| Recall (Sensitivity) | {tp/(tp+fn) if (tp+fn)>0 else 0:.4f} |
+| Specificity | {tn/(tn+fp) if (tn+fp)>0 else 0:.4f} |
+| Precision | {tp/(tp+fp) if (tp+fp)>0 else 0:.4f} |
+""")
+
+                    else:  # All models grid
+                        ncols = 3
+                        nrows = -(-len(model_names) // ncols)  # ceiling division
+                        fig, axes = plt.subplots(nrows, ncols,
+                                                 figsize=(5 * ncols, 4 * nrows))
+                        axes = axes.flatten()
+                        for i, name in enumerate(model_names):
+                            y_pred = all_models[name].predict(X_test_scaled)
+                            plot_cm(axes[i], y_test, y_pred, name,
+                                    best=(name == best_model_name))
+                        # Hide any unused subplots
+                        for j in range(len(model_names), len(axes)):
+                            axes[j].set_visible(False)
+                        plt.suptitle("Confusion Matrices — All Models (Test Set)",
+                                     fontsize=13, fontweight='bold', y=1.01)
+                        plt.tight_layout()
+                        st.pyplot(fig)
         
         except Exception as e:
             st.error(f"Error during visualization: {e}")
