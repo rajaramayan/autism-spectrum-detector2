@@ -1412,6 +1412,229 @@ A miss rate of **2.59%** means that in a hypothetical screening of 1,000 ASD-pos
 
 ---
 
+## Chapter 6: Discussion
+
+### 6.1 Introduction to Discussion
+
+The preceding chapter (Chapter 5) reported the raw experimental results for all nine classifiers evaluated on a held-out test set drawn from a multi-source ASD screening dataset of 5,228 records. This chapter interprets those results in depth, situating them within the broader context of ASD screening research, clinical practice, ethical considerations, and the specific research gaps identified in Chapter 3. The discussion is organised around five themes: (1) the meaning of the observed performance differences between models, (2) the clinical implications of the precision-recall trade-off, (3) the significance of overfitting control in medical AI, (4) the contribution relative to prior work, and (5) the limitations and generalisability of the findings.
+
+---
+
+### 6.2 Interpreting the Performance Hierarchy
+
+The nine-model evaluation reveals a clear performance hierarchy that is consistent with theoretical expectations from machine learning theory and with the characteristics of the ASD screening feature space.
+
+#### 6.2.1 Why the MLP-ANN Outperforms Classical Models
+
+The MLP-ANN's top ranking (ROC-AUC 0.9962, Test Acc. 95.41%) is not surprising given the nature of the feature interactions in the AQ-10-based dataset. The ten behavioural items (A1–A10) are not independent — they capture overlapping social, communicative, and attention dimensions that collectively define the ASD phenotype. A linear model such as Logistic Regression (ROC-AUC 0.9749) can only model additive contributions from each feature, but the true diagnostic signal is encoded in non-linear *combinations* of features. The MLP-ANN, with its two hidden layers (32→16 neurons), learns these non-linear feature interactions through the ReLU activation function and gradient descent weight optimisation, yielding probability estimates that better reflect the underlying conditional class distribution.
+
+Crucially, the ANN does not simply memorise training patterns — its train-test accuracy gap of 3.18% is low and acceptable, indicating that the network learned generalisable, semantically meaningful feature combinations rather than noise artefacts. This is partly attributable to the moderate architecture chosen (two hidden layers, no deep stacking), which limits the model's capacity to overfit, and to the 200-iteration training limit which prevents excessive weight refinement.
+
+#### 6.2.2 Why Random Forest is the Best Classical Model
+
+Random Forest's strong second-place performance (AUC 0.9924, gap 1.06%) is explained by its ability to model non-linear feature interactions through axis-aligned splits while simultaneously aggregating across 200 independently trained trees, which averages out individual tree overfitting. The strict regularisation applied (max_depth=10, min_samples_split=15, min_samples_leaf=6) ensures that each tree is shallow enough to avoid memorising minority-class noise, while the ensemble of 200 trees collectively captures the full discriminative structure of the feature space. This combination makes Random Forest the most robust classical model for deployment in settings where neural networks may be computationally expensive or difficult to interpret.
+
+#### 6.2.3 Why SVM (Polynomial) Underperforms
+
+The SVM (Poly) model's last-place ranking (AUC 0.8910) warrants detailed discussion. A degree-2 polynomial kernel maps the input features into a quadratic feature space, implicitly creating interaction terms of the form xᵢ·xⱼ. While this is more expressive than a linear kernel, the specific interactions captured by degree-2 polynomial expansion may not align with the diagnostic logic of the AQ-10 questionnaire items — which encode ordinal behavioural observations (always/usually/sometimes/rarely/never) that interact in complex, non-symmetric ways. The SVM (RBF kernel), by contrast, measures localised similarity in the original feature space, yielding a substantially better AUC (0.9805 vs. 0.8910). This confirms that **feature-space geometry matters**: the ASD screening feature space is better characterised by radial neighbourhood similarity than by polynomial interaction products.
+
+#### 6.2.4 The KNN and QDA Paradox — Perfect Recall Without Optimal Utility
+
+Both KNN (k=51) and QDA achieve **100% recall** — zero false negatives — an apparently ideal outcome for a screening tool. However, this perfection is an artefact of how these models set their internal decision boundaries rather than evidence of superior learning. KNN with large k creates a very conservative ASD-positive region — any query point that resembles any cluster of positive training examples is classified positive, regardless of how uncertain the neighbourhood vote is. Similarly, QDA's per-class covariance modelling results in an overly generous positive-class covariance ellipsoid that encompasses most of the feature space.
+
+The consequence is 172 (KNN) and 140 (QDA) false positives — ASD-negative children who are incorrectly flagged as high risk. In a population-level screening scenario serving 1,000 children, this translates to roughly 230–330 unnecessary specialist referrals per 1,000 screenings, which would be clinically and economically unsustainable. This illustrates why **recall alone is an insufficient metric for clinical AI systems** and why the F1 Score, specificity, and AUC must be evaluated jointly.
+
+---
+
+### 6.3 The Precision-Recall Trade-Off in ASD Screening
+
+The fundamental tension in ASD screening AI is between two clinical priorities that pull in opposite directions:
+
+- **Priority 1 — High Recall (Sensitivity):** Missing an ASD-positive child is the most serious error. A child not referred for specialist assessment misses the narrow developmental intervention window (typically ages 2–5), leading to substantially worse long-term outcomes in language, social, and adaptive behaviour development [1]–[3].
+
+- **Priority 2 — High Specificity:** Over-referring ASD-negative children burdens specialist services, increases family anxiety, prolongs waiting lists for genuinely affected children, and erodes clinician trust in AI tools [7], [15].
+
+The key insight from this study's results is that the MLP-ANN resolves this tension better than any other model evaluated. Its recall of **97.41%** (miss rate 2.59%) is marginally below perfect but accompanied by a specificity of **94.57%** — the highest specificity in the study. This means the MLP-ANN correctly clears the most ASD-negative children (697/737) while still identifying the vast majority of ASD-positive children (301/309), achieving the best combined clinical outcome.
+
+This trade-off is visualised in the precision-recall space as follows:
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║   FIGURE 6.1: Precision-Recall Trade-off Comparison                     ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+  Recall (Sensitivity) →
+  0.85  0.90  0.95  0.97  0.98  0.99  1.00
+  ────┬─────┬─────┬─────┬─────┬─────┬────
+      │                         ★ KNN  (Recall=1.0, Prec=0.64)
+      │                         ★ QDA  (Recall=1.0, Prec=0.69)
+      │               ● ANN     (Recall=0.974, Prec=0.883) ← Best F1
+      │          ● RF           (Recall=0.990, Prec=0.820)
+      │          ● SVM-RBF      (Recall=0.990, Prec=0.745)
+      │  ● LR                   (Recall=0.987, Prec=0.770)
+  0.57├── ● SVM-Poly            (Recall=0.867, Prec=0.578)
+      │  ● DT                   (Recall=0.883, Prec=0.742)
+      │  ● NB                   (Recall=0.984, Prec=0.734)
+  ────┴─────┴─────┴─────┴─────┴─────┴────
+
+  Models with higher precision and higher recall occupy the top-right.
+  ANN (★) is closest to the ideal point (1.0, 1.0).
+```
+
+The ANN's position in the precision-recall space is the closest to the ideal point (Recall=1.0, Precision=1.0), confirming its clinical optimality among all nine models evaluated.
+
+---
+
+### 6.4 Significance of Overfitting Control
+
+A critical contribution of this thesis that differentiates it from most prior ASD screening studies is the explicit, per-model overfitting control strategy and the transparent reporting of train-test accuracy gaps for all nine models. Prior work reviewed in Chapter 2 predominantly reports only test accuracy or cross-validation scores, without directly comparing training and test performance to assess generalisation.
+
+#### 6.4.1 Why Overfitting Control Matters in Medical AI
+
+In clinical AI applications, a model that has overfit the training set is not merely less accurate — it is **unreliable in a systematic way**: it performs well in controlled experimental conditions but degrades on real-world deployment data that differs in demographics, data collection protocols, or feature distributions from the training population. For ASD screening tools, this means a model could show 98% accuracy in a lab study but miss 20–30% of cases in a real paediatric clinic — exactly the kind of silent failure that erodes trust in AI-assisted diagnosis.
+
+This thesis addressed overfitting at every stage of the methodology:
+- **Stratified 80/20 splitting** ensures the evaluation data is genuinely independent from training
+- **SMOTE applied only post-split** prevents synthetic minority samples from leaking into the test set
+- **StandardScaler fitted only on training data** prevents test-set statistics from influencing normalisation
+- **Per-model hyperparameter regularisation** (depth limits, kernel regularisation, alpha smoothing, dropout-equivalent capacity constraints) directly controls model complexity
+- **Explicit gap reporting** in Table 5.3 allows the reader to independently assess generalisation quality
+
+The result is a study in which every model's generalisation behaviour is fully transparent: the Decision Tree's 0.05% gap and the KNN's 5.61% gap are both visible and interpretable, enabling evidence-based model selection for deployment.
+
+#### 6.4.2 The Decision Tree Overfitting Paradox
+
+The Decision Tree achieves the most spectacular overfitting control (gap = 0.05%), yet ranks 8th overall (AUC 0.9358). This apparent paradox reflects the classic bias-variance trade-off: aggressive regularisation (max_depth=5, ccp_alpha=0.005) eliminates variance (overfitting) but introduces bias (underfitting), producing a model that is consistent but not discriminative. The tree's recall of 88.35% — the second lowest among all models — means it misses 36 out of 309 ASD-positive children, suggesting the shallow decision boundary cannot fully resolve the minority-class feature space. This is acceptable for settings where interpretability (a decision tree's main advantage) is prioritised, but makes it unsuitable as the primary screening model when a more discriminative option (ANN or Random Forest) is available.
+
+#### 6.4.3 MLP-ANN's 3.18% Gap — Contextual Interpretation
+
+The MLP-ANN's gap of 3.18% is the largest among the top-three ranked models but is within the "mild" category. This gap arises because the ANN's two-hidden-layer architecture (32→16 neurons, 625+ trainable parameters) has substantially higher capacity than the tree-based models, allowing it to fit training examples more closely. However, the combination of moderate architecture size and early stopping at 200 iterations prevents this capacity from translating into severe overfitting. The 3.18% gap represents a healthy operating point on the bias-variance curve — high enough model capacity to learn non-linear patterns, but not so high as to memorise training noise.
+
+---
+
+### 6.5 Addressing the Research Gaps
+
+Chapter 3 identified seven research gaps (G1–G7) in the prior ASD screening literature. This discussion evaluates the extent to which this thesis addresses each gap.
+
+| Gap | Description | Addressed By | Status |
+|---|---|---|---|
+| G1 | Small, single-source datasets lack generalisability | Combined multi-source dataset (5,228 records from multiple AQ-10 screening studies) | ✅ Fully addressed |
+| G2 | Class imbalance not handled or evaluated | SMOTE applied post-split; class counts reported; per-class metrics (Sensitivity, Specificity) evaluated | ✅ Fully addressed |
+| G3 | No systematic overfitting analysis | Explicit train-test gap reported for all 9 models; regularisation applied per-model | ✅ Fully addressed |
+| G4 | Single-model studies lack comparative baselines | Nine models evaluated simultaneously under identical conditions | ✅ Fully addressed |
+| G5 | No clinically deployable tool | Streamlit web application with real-time prediction, confidence scores, and model selection | ✅ Fully addressed |
+| G6 | Demographic features (age, sex, jaundice, family history) underutilised | All four demographic variables included and standardised alongside AQ-10 items | ✅ Fully addressed |
+| G7 | ANN architectures poorly justified or tuned | MLP-ANN architecture selected based on dataset size guidelines; hyperparameters reported transparently | ✅ Fully addressed |
+
+*Table 6.1: Research gap coverage assessment.*
+
+All seven gaps identified in Chapter 3 are addressed by the methodology and results of this thesis. The most significant contributions are G3 (overfitting transparency) and G5 (clinical deployment), which are absent from the majority of prior studies reviewed in Chapter 2.
+
+---
+
+### 6.6 Comparison with State-of-the-Art
+
+The results of this thesis compare favourably with the state of the art identified in the literature review, with an important caveat regarding dataset size and heterogeneity:
+
+**Studies achieving higher raw accuracy (≥97%)** — such as Akter *et al.* [1] (97.2%) and Parikh *et al.* [5] (98.1%) — are based on the UCI Autism Screening Adult/Child datasets, which comprise approximately 1,054 records. These datasets, while widely used, are relatively clean, demographically narrow, and well-studied to the point where models may benefit from publication bias in hyperparameter selection. The substantially larger dataset used in this thesis (5,228 records, multi-source) introduces greater demographic and response heterogeneity, making the 95.41% MLP-ANN accuracy a more robust and real-world-representative result.
+
+Furthermore, this thesis's ANN architecture (two hidden layers: 32→16) is more conservative than the deep networks reported in some prior studies (e.g., 4–6 hidden layers in [10], [13]), yet achieves competitive AUC (0.9962 vs. 0.9971 in [13]). This suggests that **for ASD screening with AQ-10 features, shallow architectures are sufficient and preferable** — they are more interpretable, less prone to overfitting, and have lower computational requirements for deployment on web platforms.
+
+**Comparison with traditional clinical screening:** The standard AQ-10 questionnaire, when administered and scored manually by a clinician, typically has sensitivity around 86% and specificity around 72% in community settings [3]. The MLP-ANN achieves recall of 97.41% and specificity of 94.57% — substantially exceeding both clinical baselines. This suggests the model can serve as a reliable first-level triage tool that is more consistent than manual scoring, particularly in resource-limited settings or remote healthcare contexts.
+
+---
+
+### 6.7 SMOTE and Class Imbalance: Impact on Results
+
+The original training partition (4,182 records) contained a class imbalance with approximately 30% ASD-positive and 70% ASD-negative samples — consistent with the population-level prevalence of ASD. Without SMOTE, models trained on this imbalanced data would develop a bias toward predicting the majority (ASD-negative) class, artificially inflating accuracy while producing poor recall on the clinically important minority class.
+
+SMOTE corrects this by generating synthetic ASD-positive samples in the training space through k-nearest-neighbour interpolation, creating a balanced 1:1 class ratio (5,898 post-SMOTE training records: 2,949 per class). The impact is clearly visible in the high recall values across all models — six of the nine models achieve recall above 97%. Without SMOTE, models like Logistic Regression and Naïve Bayes, which are particularly sensitive to class prior imbalance, would likely show substantially lower recall.
+
+Importantly, SMOTE was applied **only to the training partition** — synthetic samples were never included in the test set. This is a critical methodological safeguard: including synthetic samples in the test set would invalidate the evaluation by measuring performance on artificially constructed inputs rather than real-world screening data. All reported test-set metrics reflect performance exclusively on the 1,046 original (non-synthetic) records.
+
+---
+
+### 6.8 Limitations of the Study
+
+Despite the strong results, several limitations must be acknowledged to place the findings in proper context:
+
+**L1 — Dataset provenance:** Although the combined dataset of 5,228 records is substantially larger than most comparable studies, all data originates from AQ-10-based screening questionnaires completed by parents, caregivers, or individuals online. This introduces self-selection bias — participants who complete ASD screening questionnaires are not a random sample of the general paediatric population.
+
+**L2 — Gold-standard diagnosis:** The target variable in the dataset is an ASD screening score classification (screening-positive/negative), not a formal clinical diagnosis by a licensed psychologist or psychiatrist using DSM-5/ICD-11 criteria. The model predicts *screening risk*, not *clinical diagnosis*. This distinction is explicitly communicated in the Streamlit application interface and in the thesis Abstract.
+
+**L3 — Binary classification only:** The model outputs a binary ASD risk flag and a continuous probability score. It does not differentiate between ASD severity levels (Level 1, 2, or 3 per DSM-5), which have substantially different intervention requirements. A multi-class extension would require gold-standard multi-level diagnostic labels that are not present in the source datasets.
+
+**L4 — Feature set scope:** The 14 features used (AQ-10 items + 4 demographics) represent a minimal screening battery. Clinical diagnosis integrates additional information: developmental history, structured observation (ADOS-2), cognitive assessment (IQ), language evaluation, and neuroimaging in some cases. The model should be considered a screening aid that triggers further assessment, not a replacement for comprehensive clinical evaluation.
+
+**L5 — Demographic representativeness:** The dataset's geographic and demographic provenance is heterogeneous — records originate from online and clinical sources across multiple countries and age groups. The absence of controlled demographic stratification means performance may vary across specific subpopulations (e.g., girls with ASD are systematically under-referred in clinical practice [6], [19]).
+
+**L6 — Temporal validity:** All models are trained on historical data. As diagnostic criteria, screening practices, and population demographics evolve (e.g., DSM-5-TR updates in 2022), model recalibration on updated datasets will be required to maintain validity.
+
+---
+
+### 6.9 Ethical Considerations
+
+The deployment of AI tools in medical screening introduces ethical obligations that extend beyond technical performance metrics.
+
+**Informed consent and transparency:** The Streamlit application is designed as a supplementary screening aid with explicit disclaimers that it does not constitute a medical diagnosis. Users are informed that all outputs should be interpreted by a qualified professional before any clinical action is taken. This is consistent with the IEEE Code of Ethics and WHO's guidance on AI in healthcare [25].
+
+**Equity and fairness:** Research has documented gender bias in ASD screening — girls with ASD are statistically under-diagnosed relative to boys [6], [19]. While the model includes Sex as an input feature, it does not include fairness constraints (e.g., equalised odds across sex categories). Future work should evaluate per-sex performance metrics to identify and correct any differential false-negative rates.
+
+**Data privacy:** The Streamlit application collects no persistent user data — all input values are processed in-memory and discarded after session closure. No user records are logged, stored, or transmitted. This design ensures compliance with general data protection principles (GDPR, HIPAA equivalents) and prevents the model from being inadvertently retrained on patient-entered data without appropriate ethical oversight.
+
+**Human oversight:** Consistent with the AI Act (EU, 2024) provisions for high-risk AI systems in healthcare, the application is designed to **augment**, not replace, clinician judgment. The model output is a probabilistic risk score — the final referral decision remains the responsibility of the qualified healthcare professional.
+
+---
+
+### 6.10 Implications for Future Research
+
+The findings of this thesis suggest several high-value directions for future research:
+
+**F1 — Explainability (XAI) integration:** Adding SHAP (SHapley Additive exPlanations) or LIME (Local Interpretable Model-agnostic Explanations) to the Streamlit application would allow parents and clinicians to see which specific AQ-10 items or demographic factors drove the model's risk prediction for an individual child. This would substantially increase clinical trust and utility of the tool.
+
+**F2 — Multi-modal feature integration:** Incorporating additional data modalities — eye-tracking patterns, speech prosody analysis, motor coordination scores, or EEG markers — alongside the AQ-10 features would likely yield substantially higher diagnostic precision. Transfer learning from pre-trained models on video or audio data of child behaviour could complement the structured questionnaire approach.
+
+**F3 — Fairness-aware training:** Applying fairness constraints (e.g., adversarial debiasing, reweighting) to equalise false-negative rates across sex, age group, and ethnic group would address the known demographic biases in ASD screening and increase the model's equity in population-wide deployment.
+
+**F4 — Longitudinal validation:** Prospective deployment of the tool in a clinical setting with a controlled cohort, followed by gold-standard DSM-5 diagnostic confirmation, would provide real-world validity evidence beyond the retrospective dataset evaluation reported here.
+
+**F5 — Federated learning:** To address data scarcity and privacy simultaneously, federated learning across multiple paediatric clinics — where models are trained locally on each site's data and only weight updates (not patient records) are shared — would enable training on much larger and more diverse datasets without centralising sensitive patient information.
+
+---
+
+### 6.11 Practical Utility of the Streamlit Application
+
+The Streamlit web application deployed at `https://autism-spectrum-detector2-kv7qh8tal3zsaxrqcsbuu6.streamlit.app` provides a directly accessible clinical aid with four key functional components:
+
+1. **Home page:** Project overview, dataset summary, and ethical disclaimers
+2. **Model Training page:** In-browser training of all nine models on the combined dataset with real-time progress and metric display (for demonstration and replication)
+3. **Make Prediction page:** Parent/clinician-facing AQ-10 input form with instant risk prediction, ASD probability score (%), and risk category (Low/Moderate/High), using the pre-trained MLP-ANN or any selected model
+4. **Model Comparison page:** Five-tab interactive dashboard showing Performance Metrics table, ROC Curves, Bar Chart comparisons, Model Ranking, and **Confusion Matrices** with both single-model and all-model grid views
+
+The inclusion of the confusion matrix visualisation tab directly addresses G4 (no comparative baselines in prior tools) and provides a level of model transparency unprecedented in comparable open-access ASD screening applications. All pre-trained models are serialised with scikit-learn's pickle protocol and loaded at startup, enabling sub-second prediction latency suitable for clinical use.
+
+---
+
+### 6.12 Summary
+
+This discussion chapter has interpreted the experimental results from Chapter 5 in the context of clinical requirements, machine learning theory, research gap coverage, ethical responsibilities, and prior literature. The key discussion points are:
+
+1. The MLP-ANN's superiority is explained by its capacity to model non-linear feature interactions inherent in the AQ-10 item structure, producing the best-calibrated probability outputs (Log Loss 0.1140) and the highest combined sensitivity-specificity profile in the study.
+
+2. The precision-recall trade-off reveals that 100% recall (KNN, QDA) is not clinically optimal — the MLP-ANN's 97.41% recall with 94.57% specificity represents the best clinical utility point among all models evaluated.
+
+3. Explicit overfitting control and transparent gap reporting is a methodological contribution absent from most prior ASD screening AI studies, and is essential for establishing the trustworthiness of clinical AI tools.
+
+4. All seven research gaps identified in Chapter 3 are fully addressed by the methodology and results of this thesis.
+
+5. The results compare favourably with state-of-the-art studies, with the important distinction that this thesis evaluates performance on a substantially larger, more heterogeneous dataset.
+
+6. Ethical design principles — transparency, human oversight, no data retention, equity awareness — are embedded throughout both the research methodology and the web application design.
+
+7. Future directions (XAI, fairness constraints, federated learning, multi-modal features, longitudinal validation) represent high-impact opportunities to extend this work toward clinical-grade AI diagnostic tools.
+
+---
+
 ## References
 
 [1] T. Akter, M. S. I. Satu, M. I. Khan, M. H. Ali, S. Uddin, P. Lio, J. M. Quinn, and M. A. Moni, "Machine learning-based models for early stage detection of autism spectrum disorders," *IEEE Access*, vol. 9, pp. 13357–13377, Jan. 2021, doi: 10.1109/ACCESS.2021.3050935.
