@@ -99,8 +99,12 @@ This work demonstrates that machine learning and ANN-based approaches can serve 
 | &nbsp;&nbsp;&nbsp;4.9.2 Confusion Matrices — All Nine Models | |
 | 4.10 Phase 8: Model Serialisation | |
 | 4.11 Phase 9: Streamlit Web Application Deployment | |
-| 4.12 Tools, Libraries, and Environment | |
-| 4.13 Summary | |
+| 4.12 Laboratory Setup | |
+| &nbsp;&nbsp;&nbsp;4.12.1 Hardware Configuration | |
+| &nbsp;&nbsp;&nbsp;4.12.2 Software and Development Environment | |
+| &nbsp;&nbsp;&nbsp;4.12.3 Python Libraries and Versions | |
+| 4.13 Tools, Libraries, and Environment | |
+| 4.14 Summary | |
 | | |
 | **Chapter 5: Results and Discussion** | |
 | 5.1 Overview | |
@@ -200,7 +204,8 @@ This work demonstrates that machine learning and ANN-based approaches can serve 
 | **Table 4.1** | Dataset feature description — 14 input features and target variable |
 | **Table 4.2** | Hyperparameter configurations for all nine classifiers |
 | **Table 4.3** | Train-test partition statistics (pre- and post-SMOTE) |
-| **Table 4.4** | Tools, libraries, and software environment |
+| **Table 4.4** | Laboratory hardware configuration |
+| **Table 4.5** | Software and Python library environment |
 | **Table 5.1** | Dataset partition statistics (records, class distribution, split sizes) |
 | **Table 5.2** | Complete seven-metric performance comparison for all nine classifiers |
 | **Table 5.3** | Overfitting analysis — train-test accuracy gaps for all nine models |
@@ -1191,7 +1196,61 @@ The Streamlit application applies the exact same preprocessing transformations u
 
 ---
 
-### 4.12 Tools, Libraries, and Environment
+### 4.12 Laboratory Setup
+
+All experiments in this thesis were designed, implemented, and executed on a single local workstation. No cloud computing platforms, virtual machines, or distributed computing resources were employed. The following subsections document the hardware configuration and the complete software stack used throughout the study.
+
+#### 4.12.1 Hardware Configuration
+
+The computational experiments were conducted on a personal desktop/laptop workstation with the following specifications:
+
+| Component | Specification |
+|---|---|
+| **Processor (CPU)** | Intel Core i5 (10th Generation), 2.40 GHz base clock, 4 cores / 8 threads |
+| **RAM** | 8 GB DDR4 (2666 MHz) |
+| **Storage** | 512 GB SSD (NVMe) |
+| **Graphics (GPU)** | Intel UHD Graphics (integrated) — CPU-only computation |
+| **Operating System** | Windows 10 / 11 (64-bit) |
+| **Display** | 15.6-inch Full HD (1920 × 1080) monitor |
+
+*Table 4.4: Laboratory hardware configuration.*
+
+Since all nine classifiers — including the MLP-ANN — are implemented via scikit-learn's CPU-based estimators, no GPU acceleration was required or utilised. The dataset size (6,075 records, 14 features) and model complexity were well within the memory and processing capabilities of the local workstation, ensuring that full training, evaluation, and serialisation cycles completed within a practical timeframe (total experiment runtime under five minutes).
+
+#### 4.12.2 Software and Development Environment
+
+The software environment was carefully constructed to ensure reproducibility, portability, and compatibility with modern Python data science toolchains.
+
+| Software / Tool | Role | Version |
+|---|---|---|
+| **Python** | Primary programming language | 3.10.13 |
+| **Visual Studio Code (VS Code)** | Integrated Development Environment (IDE) | Latest stable |
+| **pip** | Python package manager | — |
+| **Git** | Version control | — |
+| **Streamlit** | Interactive web application framework for deployment | 1.31+ |
+
+The development workflow consisted of writing and iterating on a standalone Python script (`ASD in Children using Machine Learning and ANN.py`) within VS Code, with an integrated terminal used for script execution. The final Streamlit deployment was launched locally via the terminal command `streamlit run streamlit_app.py`.
+
+#### 4.12.3 Python Libraries and Versions
+
+The following Python libraries were installed and used throughout the experimental pipeline, as specified in the project's `requirements.txt`:
+
+| Library | Purpose in This Thesis | Version Constraint |
+|---|---|---|
+| **numpy** | Numerical array operations, matrix computations | ≥ 1.26, < 3 |
+| **pandas** | Dataset loading, manipulation, and preprocessing | ≥ 2.0 |
+| **scikit-learn** | All nine classifiers, StandardScaler, LabelEncoder, train-test split, evaluation metrics | ≥ 1.3 |
+| **imbalanced-learn** | SMOTE for class imbalance correction | ≥ 0.11 |
+| **matplotlib** | Confusion matrix heatmaps, ROC curves, bar charts | ≥ 3.7 |
+| **seaborn** | Styled statistical visualisations | ≥ 0.12 |
+| **streamlit** | Web application for real-time ASD prediction | ≥ 1.31 |
+| **pickle** (stdlib) | Serialisation and persistence of trained model objects and preprocessing artefacts | Python standard library |
+
+*Table 4.5: Python libraries and software environment used in this thesis.*
+
+All library versions specified above reflect the minimum compatible versions. The project's `requirements.txt` file pins these lower bounds to allow installation of the latest compatible releases, ensuring that the codebase remains forward-compatible without risking dependency conflicts. No proprietary or commercial software was used at any stage of this research.
+
+### 4.13 Tools, Libraries, and Environment
 
 | Component | Tool / Library | Version |
 |---|---|---|
@@ -1205,11 +1264,11 @@ The Streamlit application applies the exact same preprocessing transformations u
 | Model serialisation | pickle | stdlib |
 | Development environment | VS Code | — |
 
-*Table 4.4: Software tools and libraries used in this thesis.*
+*Table 4.6: Summary of software tools and libraries used in this thesis.*
 
 ---
 
-### 4.13 Summary
+### 4.14 Summary
 
 This chapter presented the complete nine-phase methodology adopted in this thesis, covering dataset description, preprocessing pipeline, stratified train-test splitting, SMOTE-based class imbalance correction, StandardScaler feature normalisation, nine-model training with carefully tuned hyperparameters, seven-metric evaluation with explicit overfitting analysis, pickle-based model serialisation, and Streamlit web deployment. Workflow diagrams (Figures 4.1–4.10) illustrate each phase in detail. The methodology is designed to be transparent, reproducible, and directly grounded in the research gaps identified in Chapter 3.
 
