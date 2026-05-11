@@ -32,6 +32,184 @@ This work demonstrates that machine learning and ANN-based approaches can serve 
 
 ---
 
+## Table of Contents
+
+| | |
+|---|---|
+| **Abstract** | |
+| **Table of Contents** | |
+| **List of Figures** | |
+| **List of Tables** | |
+| | |
+| **Chapter 2: Literature Review** | |
+| 2.1 Overview | |
+| 2.2 ASD Prevalence, Clinical Challenges, and the Need for Automated Tools | |
+| 2.3 Conventional Machine Learning Classifiers for ASD Screening | |
+| 2.4 Random Forest and Ensemble Methods for ASD | |
+| 2.5 Support Vector Machines and Kernel Methods for ASD | |
+| 2.6 Artificial Neural Networks and Deep Learning for ASD | |
+| 2.7 Handling Class Imbalance with SMOTE | |
+| 2.8 Feature Selection and Dimensionality Reduction in ASD Datasets | |
+| 2.9 Comparative Studies and Systematic Reviews | |
+| 2.10 Mobile and Web Deployment of ASD Screening Tools | |
+| 2.11 Logistic Regression, Naïve Bayes, and QDA as Interpretable Baselines | |
+| 2.12 Ethical Considerations and Limitations in ML-Based ASD Diagnosis | |
+| 2.13 Summary | |
+| | |
+| **Chapter 3: Research Gap** | |
+| 3.1 Introduction | |
+| 3.2 Identified Research Gaps | |
+| &nbsp;&nbsp;&nbsp;3.2.1 Lack of Comprehensive Multi-Model Benchmarking | |
+| &nbsp;&nbsp;&nbsp;3.2.2 Insufficient Overfitting Analysis and Generalisation Reporting | |
+| &nbsp;&nbsp;&nbsp;3.2.3 Limited Use of Large, Combined, and Representative Datasets | |
+| &nbsp;&nbsp;&nbsp;3.2.4 Inadequate Handling of Class Imbalance | |
+| &nbsp;&nbsp;&nbsp;3.2.5 Absence of Probabilistic and Discriminant Analysis Classifiers | |
+| &nbsp;&nbsp;&nbsp;3.2.6 Lack of End-to-End Deployment with Multi-Model Inference | |
+| &nbsp;&nbsp;&nbsp;3.2.7 Reproducibility and Code Transparency Deficits | |
+| 3.3 Summary of Research Gaps and Thesis Contributions | |
+| 3.4 Research Objectives | |
+| | |
+| **Chapter 4: Methodology** | |
+| 4.1 Overview | |
+| 4.2 Overall System Architecture and Workflow | |
+| 4.3 Phase 1: Dataset Description | |
+| &nbsp;&nbsp;&nbsp;4.3.1 Data Source | |
+| &nbsp;&nbsp;&nbsp;4.3.2 Feature Description | |
+| &nbsp;&nbsp;&nbsp;4.3.3 Target Variable and Class Distribution | |
+| 4.4 Phase 2: Data Preprocessing | |
+| &nbsp;&nbsp;&nbsp;4.4.1 Duplicate Removal | |
+| &nbsp;&nbsp;&nbsp;4.4.2 Missing Value Imputation | |
+| &nbsp;&nbsp;&nbsp;4.4.3 Categorical Label Encoding | |
+| &nbsp;&nbsp;&nbsp;4.4.4 Numeric Coercion and Residual Fill | |
+| 4.5 Phase 3: Train-Test Partitioning | |
+| 4.6 Phase 4: Class Imbalance Handling with SMOTE | |
+| 4.7 Phase 5: Feature Scaling | |
+| 4.8 Phase 6: Model Definition and Training | |
+| &nbsp;&nbsp;&nbsp;4.8.1 Logistic Regression | |
+| &nbsp;&nbsp;&nbsp;4.8.2 Decision Tree | |
+| &nbsp;&nbsp;&nbsp;4.8.3 Random Forest | |
+| &nbsp;&nbsp;&nbsp;4.8.4 K-Nearest Neighbours (KNN) | |
+| &nbsp;&nbsp;&nbsp;4.8.5 Support Vector Machine – Polynomial Kernel | |
+| &nbsp;&nbsp;&nbsp;4.8.6 Support Vector Machine – RBF Kernel | |
+| &nbsp;&nbsp;&nbsp;4.8.7 Gaussian Naïve Bayes | |
+| &nbsp;&nbsp;&nbsp;4.8.8 Quadratic Discriminant Analysis (QDA) | |
+| &nbsp;&nbsp;&nbsp;4.8.9 Multilayer Perceptron – Artificial Neural Network (MLP-ANN) | |
+| 4.9 Phase 7: Model Evaluation Framework | |
+| &nbsp;&nbsp;&nbsp;4.9.1 Overfitting Analysis | |
+| &nbsp;&nbsp;&nbsp;4.9.2 Confusion Matrices — All Nine Models | |
+| 4.10 Phase 8: Model Serialisation | |
+| 4.11 Phase 9: Streamlit Web Application Deployment | |
+| 4.12 Tools, Libraries, and Environment | |
+| 4.13 Summary | |
+| | |
+| **Chapter 5: Results and Discussion** | |
+| 5.1 Overview | |
+| 5.2 Dataset Summary | |
+| 5.3 Overall Model Performance Results | |
+| 5.4 MLP-ANN — Best Model Analysis | |
+| 5.5 Random Forest — Second Best Model | |
+| 5.6 Model-by-Model Analysis | |
+| &nbsp;&nbsp;&nbsp;5.6.1 Logistic Regression | |
+| &nbsp;&nbsp;&nbsp;5.6.2 Decision Tree | |
+| &nbsp;&nbsp;&nbsp;5.6.3 K-Nearest Neighbours (KNN) | |
+| &nbsp;&nbsp;&nbsp;5.6.4 SVM (RBF Kernel) | |
+| &nbsp;&nbsp;&nbsp;5.6.5 SVM (Polynomial Kernel) | |
+| &nbsp;&nbsp;&nbsp;5.6.6 Naïve Bayes | |
+| &nbsp;&nbsp;&nbsp;5.6.7 Quadratic Discriminant Analysis (QDA) | |
+| 5.7 Overfitting Analysis | |
+| 5.8 ROC-AUC Comparison | |
+| 5.9 Metric-by-Metric Cross-Model Comparison | |
+| &nbsp;&nbsp;&nbsp;5.9.1 Recall (Sensitivity) — Clinical Priority Metric | |
+| &nbsp;&nbsp;&nbsp;5.9.2 Specificity — Minimising Unnecessary Referrals | |
+| &nbsp;&nbsp;&nbsp;5.9.3 F1 Score — Harmonic Mean of Precision and Recall | |
+| &nbsp;&nbsp;&nbsp;5.9.4 Log Loss — Probability Calibration Quality | |
+| 5.10 Ranking Summary — Multi-Criteria Evaluation | |
+| 5.11 Comparison with Prior Literature | |
+| 5.12 Clinical Interpretation of Results | |
+| 5.13 Summary of Key Findings | |
+| | |
+| **Chapter 6: Discussion** | |
+| 6.1 Introduction to Discussion | |
+| 6.2 Interpreting the Performance Hierarchy | |
+| &nbsp;&nbsp;&nbsp;6.2.1 Why the MLP-ANN Outperforms Classical Models | |
+| &nbsp;&nbsp;&nbsp;6.2.2 Why Random Forest is the Best Classical Model | |
+| &nbsp;&nbsp;&nbsp;6.2.3 Why SVM (Polynomial) Underperforms | |
+| &nbsp;&nbsp;&nbsp;6.2.4 The KNN and QDA Paradox — Perfect Recall Without Optimal Utility | |
+| 6.3 The Precision-Recall Trade-Off in ASD Screening | |
+| 6.4 Significance of Overfitting Control | |
+| &nbsp;&nbsp;&nbsp;6.4.1 Why Overfitting Control Matters in Medical AI | |
+| &nbsp;&nbsp;&nbsp;6.4.2 The Decision Tree Overfitting Paradox | |
+| &nbsp;&nbsp;&nbsp;6.4.3 MLP-ANN's 3.18% Gap — Contextual Interpretation | |
+| 6.5 Addressing the Research Gaps | |
+| 6.6 Comparison with State-of-the-Art | |
+| 6.7 SMOTE and Class Imbalance: Impact on Results | |
+| 6.8 Limitations of the Study | |
+| 6.9 Ethical Considerations | |
+| 6.10 Implications for Future Research | |
+| 6.11 Practical Utility of the Streamlit Application | |
+| 6.12 Summary | |
+| | |
+| **Chapter 7: Conclusion** | |
+| 7.1 Overview | |
+| 7.2 Principal Findings | |
+| &nbsp;&nbsp;&nbsp;7.2.1 The MLP-ANN is the Superior Model for ASD Screening | |
+| &nbsp;&nbsp;&nbsp;7.2.2 Random Forest is the Most Reliable Classical Classifier | |
+| &nbsp;&nbsp;&nbsp;7.2.3 Overfitting Was Controlled Across All Models | |
+| &nbsp;&nbsp;&nbsp;7.2.4 Class Imbalance Handling is Essential for High Recall | |
+| &nbsp;&nbsp;&nbsp;7.2.5 The Feature Set is Highly Discriminative | |
+| 7.3 Research Objectives — Achievement Summary | |
+| 7.4 Contributions of the Thesis | |
+| 7.5 Limitations Acknowledged | |
+| 7.6 Recommendations | |
+| 7.7 Final Conclusion | |
+| | |
+| **References** | |
+
+---
+
+## List of Figures
+
+| Figure | Caption |
+|---|---|
+| **Figure 4.1** | Overall system workflow — nine-phase methodology pipeline |
+| **Figure 4.2** | Phase 1: Dataset description and feature overview |
+| **Figure 4.3** | Phase 2: Data preprocessing pipeline (deduplication, imputation, encoding) |
+| **Figure 4.4** | Phase 3: Stratified 80/20 train-test partitioning |
+| **Figure 4.5** | Phase 4: SMOTE class imbalance correction applied to training set |
+| **Figure 4.6** | Phase 5: StandardScaler feature normalisation |
+| **Figure 4.7** | Phase 6: Nine-model training with tuned hyperparameters |
+| **Figure 4.8** | Phase 7: Seven-metric model evaluation framework |
+| **Figure 4.9** | Phase 8: Model serialisation using Python pickle |
+| **Figure 4.10** | Phase 9: Streamlit web application deployment architecture |
+| **Figure 4.11** | Confusion matrices for all nine classifiers on the test set (n=1,046) |
+| **Figure 5.1** | MLP-ANN performance summary — key metrics and confusion matrix |
+| **Figure 5.2** | Random Forest performance summary — key metrics and confusion matrix |
+| **Figure 5.3** | Overfitting gap chart — train accuracy vs. test accuracy for all nine models |
+| **Figure 5.4** | ROC-AUC ranking — all nine models sorted by discriminative power |
+| **Figure 5.5** | Clinical interpretation of MLP-ANN results on the test set |
+| **Figure 6.1** | Precision-recall trade-off comparison across all nine classifiers |
+
+---
+
+## List of Tables
+
+| Table | Caption |
+|---|---|
+| **Table 2.1** | Summary of 25 reviewed studies on ML/ANN-based ASD screening (2021–2026) |
+| **Table 3.1** | Summary of identified research gaps and corresponding thesis contributions |
+| **Table 4.1** | Dataset feature description — 14 input features and target variable |
+| **Table 4.2** | Hyperparameter configurations for all nine classifiers |
+| **Table 4.3** | Train-test partition statistics (pre- and post-SMOTE) |
+| **Table 4.4** | Tools, libraries, and software environment |
+| **Table 5.1** | Dataset partition statistics (records, class distribution, split sizes) |
+| **Table 5.2** | Complete seven-metric performance comparison for all nine classifiers |
+| **Table 5.3** | Overfitting analysis — train-test accuracy gaps for all nine models |
+| **Table 5.4** | Multi-criteria rank summary across all seven evaluation metrics |
+| **Table 6.1** | Research gap coverage assessment — G1–G7 addressed by this thesis |
+| **Table 7.1** | Research objective achievement summary — RO1–RO5 |
+
+---
+
 ## Chapter 2: Literature Review
 
 ### 2.1 Overview
