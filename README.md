@@ -1,12 +1,12 @@
 # 🧠 Autism Spectrum Disorder (ASD) Screening Prediction System
 
-A Machine Learning and Artificial Neural Network (ANN) based system to predict the likelihood of Autism Spectrum Disorder in children, built as part of a thesis project.
+A Machine Learning and Artificial Neural Network (ANN) based system to predict the likelihood of Autism Spectrum Disorder in children, built as part of a Master degree thesis of Mrs. Chhayachabbi Jha for the degree, MScISE at PUSOE under Purbanchal University
 
 ---
 
-## 👤 Author
-
-**Raj Kumar Thakur**  
+## 👤 Authors
+**Chhayachabbi Jha**
+** Prof. Raj Kumar Thakur** ( Thesis Supervisor ) 
 Email: rajkshiva59@gmail.com  
 GitHub: [rajaramayan](https://github.com/rajaramayan)
 
