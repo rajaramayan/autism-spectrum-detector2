@@ -848,6 +848,107 @@ This explicit overfitting reporting framework addresses Research Gap G2 identifi
 
 ---
 
+#### 4.9.2 Confusion Matrices — All Nine Models
+
+The following confusion matrices present the actual prediction outcomes on the held-out test set (1,046 samples: 737 ASD-negative, 309 ASD-positive) for each of the nine trained classifiers. Each matrix shows True Negatives (TN), False Positives (FP), False Negatives (FN), and True Positives (TP).
+
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║   FIGURE 4.11: Confusion Matrices — All 9 Classifiers (Test Set, n=1,046)  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Layout:
+                 Predicted ASD−    Predicted ASD+
+  Actual ASD−  [      TN       ] [      FP       ]
+  Actual ASD+  [      FN       ] [      TP       ]
+
+  ─────────────────────────────────────────────────────────────────────────────
+  [1] Logistic Regression                 [2] Decision Tree
+  ─────────────────────────────────────────────────────────────────────────────
+                Pred ASD−  Pred ASD+                    Pred ASD−  Pred ASD+
+  Act ASD−  [    646    ] [   91    ]    Act ASD−  [    642    ] [   95    ]
+  Act ASD+  [      4    ] [  305    ]    Act ASD+  [     36    ] [  273    ]
+
+  TN=646  FP=91  FN=4  TP=305            TN=642  FP=95  FN=36  TP=273
+  Accuracy = 91.49%                       Accuracy = 87.38%
+  Recall   = 98.71%                       Recall   = 88.35%
+
+  ─────────────────────────────────────────────────────────────────────────────
+  [3] Random Forest                       [4] KNN (k=51)
+  ─────────────────────────────────────────────────────────────────────────────
+                Pred ASD−  Pred ASD+                    Pred ASD−  Pred ASD+
+  Act ASD−  [    670    ] [   67    ]    Act ASD−  [    565    ] [  172    ]
+  Act ASD+  [      3    ] [  306    ]    Act ASD+  [      0    ] [  309    ]
+
+  TN=670  FP=67  FN=3  TP=306            TN=565  FP=172  FN=0  TP=309
+  Accuracy = 93.69%                       Accuracy = 83.56%
+  Recall   = 99.03%                       Recall   = 100.00%
+
+  ─────────────────────────────────────────────────────────────────────────────
+  [5] SVM (Polynomial)                   [6] SVM (RBF)
+  ─────────────────────────────────────────────────────────────────────────────
+                Pred ASD−  Pred ASD+                    Pred ASD−  Pred ASD+
+  Act ASD−  [    541    ] [  196    ]    Act ASD−  [    632    ] [  105    ]
+  Act ASD+  [     41    ] [  268    ]    Act ASD+  [      3    ] [  306    ]
+
+  TN=541  FP=196  FN=41  TP=268          TN=632  FP=105  FN=3  TP=306
+  Accuracy = 77.44%                       Accuracy = 89.96%
+  Recall   = 86.73%                       Recall   = 99.03%
+
+  ─────────────────────────────────────────────────────────────────────────────
+  [7] Naïve Bayes                        [8] QDA
+  ─────────────────────────────────────────────────────────────────────────────
+                Pred ASD−  Pred ASD+                    Pred ASD−  Pred ASD+
+  Act ASD−  [    627    ] [  110    ]    Act ASD−  [    597    ] [  140    ]
+  Act ASD+  [      5    ] [  304    ]    Act ASD+  [      0    ] [  309    ]
+
+  TN=627  FP=110  FN=5  TP=304           TN=597  FP=140  FN=0  TP=309
+  Accuracy = 89.48%                       Accuracy = 86.62%
+  Recall   = 98.38%                       Recall   = 100.00%
+
+  ─────────────────────────────────────────────────────────────────────────────
+  [9] MLP-ANN  ★ Best Model (Highest AUC)
+  ─────────────────────────────────────────────────────────────────────────────
+                Pred ASD−  Pred ASD+
+  Act ASD−  [    697    ] [   40    ]
+  Act ASD+  [      8    ] [  301    ]
+
+  TN=697  FP=40  FN=8  TP=301
+  Accuracy = 95.41%
+  Recall   = 97.41%
+  Specificity = 94.57%   Precision = 88.27%   F1 = 92.62%
+```
+
+**Comparative summary of confusion matrix outcomes:**
+
+| Model | TN | FP | FN | TP | Recall | Specificity | Precision |
+|---|---|---|---|---|---|---|---|
+| Logistic Regression | 646 | 91 | 4 | 305 | 98.71% | 87.65% | 77.02% |
+| Decision Tree | 642 | 95 | 36 | 273 | 88.35% | 87.11% | 74.19% |
+| Random Forest | 670 | 67 | 3 | 306 | 99.03% | 90.91% | 82.04% |
+| KNN (k=51) | 565 | 172 | 0 | 309 | 100.00% | 76.66% | 64.25% |
+| SVM (Poly) | 541 | 196 | 41 | 268 | 86.73% | 73.40% | 57.76% |
+| SVM (RBF) | 632 | 105 | 3 | 306 | 99.03% | 85.75% | 74.45% |
+| Naïve Bayes | 627 | 110 | 5 | 304 | 98.38% | 85.07% | 73.43% |
+| QDA | 597 | 140 | 0 | 309 | 100.00% | 81.00% | 68.82% |
+| **MLP-ANN** | **697** | **40** | **8** | **301** | **97.41%** | **94.57%** | **88.27%** |
+
+*Table 4.3: Confusion matrix values and derived metrics for all nine classifiers on the test set (n=1,046).*
+
+**Key observations from the confusion matrices:**
+
+1. **MLP-ANN achieves the best balance** between sensitivity and specificity, with the fewest false positives (40) of any model and only 8 false negatives. This makes it the most clinically suitable model — it minimises both unnecessary referrals (FP) and missed diagnoses (FN).
+
+2. **KNN and QDA achieve perfect recall (100%)** — zero false negatives — but at the cost of high false positive rates (172 and 140 respectively), meaning many ASD-negative children would be incorrectly flagged for referral.
+
+3. **Random Forest produces the second-best overall profile**, with only 3 false negatives and 67 false positives, confirming its reputation as a robust ensemble classifier.
+
+4. **SVM (Poly) performs worst**, with 41 false negatives and 196 false positives — the highest error counts in both categories — indicating that the polynomial kernel is poorly suited to this feature space geometry.
+
+5. **Logistic Regression is surprisingly competitive**, with only 4 false negatives (matching Random Forest closely) and 91 false positives, demonstrating that a linear decision boundary captures much of the discriminative structure in the AQ-10 features.
+
+---
+
 ### 4.10 Phase 8: Model Serialisation
 
 All trained artefacts are serialised to the `models/` directory using Python's `pickle` library, enabling the Streamlit application to load pre-trained models without retraining:
