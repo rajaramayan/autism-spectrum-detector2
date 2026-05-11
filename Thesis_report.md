@@ -276,6 +276,666 @@ Based on the identified gaps, this thesis pursues the following primary research
 
 ---
 
+## Chapter 4: Methodology
+
+### 4.1 Overview
+
+This chapter provides a comprehensive and detailed description of the methodology adopted in this thesis for developing, training, evaluating, and deploying machine learning and artificial neural network models for early ASD detection in children. The methodology follows a structured pipeline comprising seven major phases: (1) data collection and description, (2) data preprocessing, (3) train-test partitioning and class imbalance handling, (4) feature scaling, (5) model definition and training, (6) model evaluation and overfitting analysis, and (7) model serialisation and web deployment. Each phase is described in technical detail with reference to the specific implementation choices made, and the overall workflow is illustrated through structured diagrams.
+
+---
+
+### 4.2 Overall System Architecture and Workflow
+
+The end-to-end system architecture of this thesis is presented in Figure 4.1. The pipeline proceeds from raw data ingestion through preprocessing, resampling, model training, evaluation, and finally real-time deployment as a Streamlit web application.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║              FIGURE 4.1: End-to-End System Workflow              ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────────────┐
+  │   Phase 1: Data Collection      │
+  │  Autism_Screening_Data_          │
+  │  Combined.csv  (6,075 records,  │
+  │  14 features + 1 target)        │
+  └────────────────┬────────────────┘
+                   │
+                   ▼
+  ┌─────────────────────────────────┐
+  │   Phase 2: Data Preprocessing   │
+  │  • Remove duplicates            │
+  │  • Mode imputation (missing)    │
+  │  • Per-column Label Encoding    │
+  │  • Numeric coercion & mean fill │
+  └────────────────┬────────────────┘
+                   │
+                   ▼
+  ┌─────────────────────────────────┐
+  │   Phase 3: Train-Test Split     │
+  │  • 80% Train / 20% Test         │
+  │  • Stratified by target class   │
+  │  • random_state = 42            │
+  └────────────────┬────────────────┘
+                   │
+                   ▼
+  ┌─────────────────────────────────┐
+  │   Phase 4: SMOTE (Train only)   │
+  │  • Synthetic Minority           │
+  │    Oversampling on X_train      │
+  │  • Balances ASD+/ASD− classes   │
+  └────────────────┬────────────────┘
+                   │
+                   ▼
+  ┌─────────────────────────────────┐
+  │   Phase 5: Feature Scaling      │
+  │  • StandardScaler fit on        │
+  │    X_train, transform X_test    │
+  │  • Zero mean, unit variance     │
+  └────────────────┬────────────────┘
+                   │
+                   ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │          Phase 6: Model Training (9 Classifiers)            │
+  │                                                             │
+  │  ┌────────────┐ ┌──────────────┐ ┌────────────────────┐   │
+  │  │ Logistic   │ │ Decision     │ │ Random Forest      │   │
+  │  │ Regression │ │ Tree         │ │ (200 estimators)   │   │
+  │  └────────────┘ └──────────────┘ └────────────────────┘   │
+  │  ┌────────────┐ ┌──────────────┐ ┌────────────────────┐   │
+  │  │ KNN        │ │ SVM (Poly)   │ │ SVM (RBF)          │   │
+  │  │ (k=51)     │ │ degree=2     │ │ C=0.1              │   │
+  │  └────────────┘ └──────────────┘ └────────────────────┘   │
+  │  ┌────────────┐ ┌──────────────┐ ┌────────────────────┐   │
+  │  │ Naïve      │ │ QDA          │ │ MLP-ANN            │   │
+  │  │ Bayes      │ │ reg=0.7      │ │ (32→16, ReLU, Adam)│   │
+  │  └────────────┘ └──────────────┘ └────────────────────┘   │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │            Phase 7: Model Evaluation                        │
+  │  Metrics: Accuracy, Precision, Recall, Specificity,         │
+  │           F1 Score, ROC-AUC, Log Loss                       │
+  │  Plots:   ROC Curves, Bar Charts, Confusion Matrix          │
+  │  Overfitting: Train Accuracy − Test Accuracy (Gap)          │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │         Phase 8: Model Serialisation (pickle)               │
+  │  trained_models.pkl │ ann.pkl │ scaler.pkl │ le_dict.pkl    │
+  │  results_df.pkl     │ roc_data.pkl │ metadata.pkl           │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │         Phase 9: Streamlit Web Deployment                   │
+  │  Real-time ASD risk prediction │ Multi-model visualisations │
+  │  ROC curve display │ Overfitting table │ Probability scores │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4.3 Phase 1: Dataset Description
+
+#### 4.3.1 Data Source
+
+The dataset used in this study is the **Autism Screening Data (Combined)**, a merged collection of ASD screening records drawn from multiple publicly available ASD datasets originally hosted on the UCI Machine Learning Repository and Kaggle. The combined dataset contains **6,075 records** and **15 columns** (14 features and 1 binary target variable).
+
+#### 4.3.2 Feature Description
+
+The dataset incorporates clinically validated features derived from the **Autism Quotient – 10 item (AQ-10)** screening questionnaire, along with demographic and medical history variables:
+
+| Feature | Type | Description |
+|---|---|---|
+| A1 – A10 | Binary (0/1) | Ten AQ-10 behavioural screening questions |
+| Age | Continuous | Age of the individual in years |
+| Sex | Categorical | Gender (Male / Female) |
+| Jaundice | Binary | History of jaundice at birth (yes / no) |
+| Family_ASD | Binary | Family member diagnosed with ASD (yes / no) |
+| **Class/ASD** | Binary (target) | ASD positive (1) / ASD negative (0) |
+
+*Table 4.1: Feature description of the ASD screening dataset.*
+
+The ten AQ-10 items (A1–A10) collectively form the primary screening subscale. Each item is a binary response (0 = non-autistic response, 1 = autistic-trait response) to questions concerning social awareness, attention to detail, communication, imagination, and pattern recognition. The total AQ-10 score across A1–A10 ranges from 0 to 10, with scores ≥ 6 conventionally indicating a referral threshold.
+
+#### 4.3.3 Target Variable and Class Distribution
+
+The target variable is a binary class label indicating ASD diagnosis outcome. Prior to resampling, the dataset exhibits moderate class imbalance, with ASD-positive cases representing approximately 30–35% of the combined cohort—a distribution typical of community screening populations where confirmed diagnoses are less prevalent than at-risk screenings.
+
+---
+
+### 4.4 Phase 2: Data Preprocessing
+
+Preprocessing is the most critical determinant of model reliability and reproducibility. The following sequential steps were applied:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║         FIGURE 4.2: Data Preprocessing Pipeline                 ║
+╚══════════════════════════════════════════════════════════════════╝
+
+   Raw CSV Input (6,075 rows × 15 cols)
+              │
+              ▼
+   ┌───────────────────────────────┐
+   │  Step 1: Duplicate Removal    │
+   │  df.drop_duplicates()         │
+   │  Ensures each record is       │
+   │  counted exactly once         │
+   └──────────────┬────────────────┘
+                  │
+                  ▼
+   ┌───────────────────────────────┐
+   │  Step 2: Missing Value        │
+   │  Imputation (Mode Strategy)   │
+   │  df.fillna(df.mode().iloc[0]) │
+   │  Handles categorical &        │
+   │  numerical NaN values         │
+   └──────────────┬────────────────┘
+                  │
+                  ▼
+   ┌───────────────────────────────┐
+   │  Step 3: Categorical Encoding │
+   │  Per-column LabelEncoder      │
+   │  for each categorical column  │
+   │  Encoders stored in le_dict   │
+   │  for inference-time reuse     │
+   └──────────────┬────────────────┘
+                  │
+                  ▼
+   ┌───────────────────────────────┐
+   │  Step 4: Numeric Coercion     │
+   │  pd.to_numeric(errors='coerce')│
+   │  + mean fill for any residual │
+   │  NaN introduced by coercion   │
+   └──────────────┬────────────────┘
+                  │
+                  ▼
+   ┌───────────────────────────────┐
+   │  Step 5: Feature/Target Split │
+   │  X = all columns except last  │
+   │  y = last column (ASD label)  │
+   └───────────────────────────────┘
+```
+
+#### 4.4.1 Duplicate Removal
+
+Duplicate records arise in combined datasets from overlapping source populations. The `drop_duplicates()` operation removes rows that are identical across all 15 columns, ensuring each individual screening record contributes exactly once to model training and evaluation.
+
+#### 4.4.2 Missing Value Imputation
+
+Missing values in ASD screening datasets frequently arise from unanswered questionnaire items or incomplete demographic records. Mode imputation (`df.fillna(df.mode().iloc[0])`) is selected as the imputation strategy because:
+- It is appropriate for both categorical features (Sex, Jaundice, Family_ASD) and binary behavioural items (A1–A10).
+- It preserves the most common response pattern, avoiding artificial distribution shifts.
+- Mean imputation was rejected as it would introduce non-integer values into binary columns.
+
+#### 4.4.3 Categorical Label Encoding
+
+Categorical variables (Sex, Jaundice, Family_ASD, and any other string-typed columns) are encoded using individual `LabelEncoder` instances—one per column—stored in a dictionary (`le_dict`). This approach is preferred over a single shared encoder because:
+- Each column may have a different set of unique string categories.
+- Per-column encoders can be independently applied at inference time to new input records, ensuring consistency between training-time and deployment-time transformations.
+- The encoder dictionary is serialised as `le_dict.pkl` and loaded by the Streamlit application for real-time use.
+
+#### 4.4.4 Numeric Coercion and Residual Fill
+
+After categorical encoding, `pd.to_numeric(errors='coerce')` is applied to all columns to ensure a fully numeric DataFrame. Any non-numeric residuals (coerced to NaN) are filled with the column mean. This two-pass imputation strategy guarantees a clean, fully numeric input matrix prior to splitting.
+
+---
+
+### 4.5 Phase 3: Train-Test Partitioning
+
+The preprocessed dataset is split into training (80%) and test (20%) partitions using scikit-learn's `train_test_split` function with the following configuration:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║         FIGURE 4.3: Train-Test Split Strategy                   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Full Dataset (after preprocessing)
+  ─────────────────────────────────
+  │       6,075 records            │
+  └────────────────────────────────┘
+              │
+              │  train_test_split(test_size=0.2,
+              │                   random_state=42,
+              │                   stratify=y)
+              │
+       ┌──────┴──────┐
+       │             │
+       ▼             ▼
+  ┌──────────┐  ┌──────────┐
+  │ Training │  │   Test   │
+  │   Set    │  │   Set    │
+  │  ~4,860  │  │  ~1,215  │
+  │  records │  │  records │
+  │  (80%)   │  │  (20%)   │
+  └──────────┘  └──────────┘
+       │             │
+       │             └──────── Held out; NEVER touched
+       │                       during SMOTE or scaling fit
+       ▼
+  SMOTE applied here
+  (training partition only)
+```
+
+**Key design choices:**
+- **`stratify=y`**: Ensures that the class ratio (ASD+ / ASD−) in the training and test sets mirrors the original dataset distribution, preventing accidental class imbalance amplification in the evaluation set.
+- **`random_state=42`**: Fixed seed for full reproducibility across all experimental runs.
+- **`test_size=0.2`**: The 80/20 split is standard practice for datasets of this size (~6,000 records), providing approximately 1,215 test samples—sufficient for reliable metric estimation across all seven evaluation criteria.
+
+---
+
+### 4.6 Phase 4: Class Imbalance Handling with SMOTE
+
+Synthetic Minority Over-sampling Technique (SMOTE) is applied exclusively to the training partition to address class imbalance without contaminating the test set.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║         FIGURE 4.4: SMOTE Oversampling Mechanism                ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  BEFORE SMOTE (Training Set)           AFTER SMOTE (Training Set)
+  ────────────────────────────          ────────────────────────────
+  ASD Negative (majority): ~3,300   →   ASD Negative: ~3,300
+  ASD Positive (minority): ~1,560   →   ASD Positive: ~3,300
+                                        (synthetic samples added)
+  Class Ratio ≈ 2.1 : 1             →   Class Ratio = 1 : 1
+
+  HOW SMOTE WORKS:
+  ┌──────────────────────────────────────────┐
+  │  For each minority-class sample p:       │
+  │  1. Find k nearest neighbours in         │
+  │     feature space (default k=5)          │
+  │  2. Randomly select one neighbour q      │
+  │  3. Generate synthetic point:            │
+  │     x_new = p + λ × (q − p)             │
+  │     where λ ~ Uniform(0, 1)              │
+  │  4. Repeat until classes are balanced    │
+  └──────────────────────────────────────────┘
+
+  ✔ Applied ONLY to X_train, y_train
+  ✔ Test set remains unmodified (natural distribution)
+  ✔ random_state=42 for reproducibility
+```
+
+SMOTE generates synthetic ASD-positive samples by interpolating between existing minority-class feature vectors in the 13-dimensional feature space, rather than simply duplicating existing records (as in random oversampling). This preserves the distributional geometry of the minority class while increasing its representation, thereby reducing classifier bias toward the majority class during training.
+
+---
+
+### 4.7 Phase 5: Feature Scaling
+
+All models are trained on standardised features produced by `StandardScaler`, which transforms each feature to zero mean and unit variance:
+
+$$x_{\text{scaled}} = \frac{x - \mu}{\sigma}$$
+
+where $\mu$ is the feature mean and $\sigma$ is the feature standard deviation, both computed exclusively from the training set.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║         FIGURE 4.5: Feature Scaling Protocol                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  X_train (SMOTE-augmented)            X_test (original)
+         │                                    │
+         │  scaler.fit_transform(X_train)      │  scaler.transform(X_test)
+         │  ── computes μ, σ from train ──     │  ── applies train μ, σ ──
+         ▼                                    ▼
+  X_train_scaled                       X_test_scaled
+  (μ=0, σ=1 per feature)              (transformed with train stats)
+
+  ⚠ CRITICAL: scaler.fit() is NEVER called on X_test.
+    This prevents data leakage: test statistics must not
+    influence the scaling transformation applied during training.
+```
+
+**Rationale for StandardScaler:**
+- Distance-based classifiers (KNN) and margin-based classifiers (SVM) are highly sensitive to feature scale disparities. Without scaling, features with larger numerical ranges (e.g., Age: 2–64) would dominate distance computations over binary features (A1–A10: 0 or 1).
+- The MLP-ANN benefits from normalised inputs because standardised inputs accelerate gradient descent convergence and prevent the vanishing/exploding gradient problem in hidden layers.
+- The fitted scaler object is serialised as `scaler.pkl` and reloaded at inference time in the Streamlit application to ensure new user inputs are scaled identically to the training data.
+
+---
+
+### 4.8 Phase 6: Model Definition and Training
+
+Nine classification models were defined and trained. The models span five distinct paradigms: linear probabilistic, tree-based, ensemble, kernel, and neural network.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║    FIGURE 4.6: Classification Model Taxonomy                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                  9 Classification Models                │
+  └─────────────────────────────────────────────────────────┘
+          │               │               │
+          ▼               ▼               ▼
+  ┌──────────────┐ ┌────────────┐ ┌────────────────────┐
+  │ Probabilistic│ │ Tree-Based │ │ Kernel Methods     │
+  │ ─────────── │ │ ─────────  │ │ ─────────────────  │
+  │ • Logistic   │ │ • Decision │ │ • SVM (Poly)       │
+  │   Regression │ │   Tree     │ │ • SVM (RBF)        │
+  │ • Naïve Bayes│ │ • Random   │ └────────────────────┘
+  │ • QDA        │ │   Forest   │
+  └──────────────┘ └────────────┘
+          │               │
+          ▼               ▼
+  ┌──────────────┐ ┌────────────────────────────────────┐
+  │ Instance-    │ │ Artificial Neural Network          │
+  │ Based        │ │ ─────────────────────────────────  │
+  │ ──────────── │ │ MLP-ANN (32 → 16, ReLU, Adam)     │
+  │ • KNN (k=51) │ └────────────────────────────────────┘
+  └──────────────┘
+```
+
+#### 4.8.1 Logistic Regression
+
+Logistic Regression fits a linear decision boundary in the feature space by optimising the log-likelihood of the binary outcome using the sigmoid function:
+
+$$\hat{P}(y=1 \mid \mathbf{x}) = \frac{1}{1 + e^{-(\mathbf{w}^T\mathbf{x} + b)}}$$
+
+**Configuration:** `max_iter=1000` (to ensure convergence on the scaled, high-dimensional input); L2 regularisation (default, `C=1.0`).
+
+**Role:** Serves as the primary interpretable linear baseline. Coefficients are directly interpretable as log-odds contributions of each feature, providing clinical explainability.
+
+#### 4.8.2 Decision Tree
+
+Decision Trees partition the feature space through a greedy sequence of binary splits, minimising Gini impurity at each node.
+
+**Configuration:**
+- `max_depth=5`: Limits tree depth to prevent memorisation of training noise.
+- `min_samples_split=20`, `min_samples_leaf=10`: Minimum sample thresholds enforce that each split and leaf node contains sufficient evidence.
+- `ccp_alpha=0.005`: Cost-complexity pruning parameter that post-prunes the tree to remove branches with negligible information gain, reducing overfitting.
+
+#### 4.8.3 Random Forest
+
+Random Forest constructs an ensemble of independently trained decision trees, each on a bootstrap sample, and aggregates predictions by majority vote.
+
+**Configuration:**
+- `n_estimators=200`: 200 trees for stable ensemble averaging.
+- `max_depth=10`: Shallow trees to prevent individual tree overfitting.
+- `min_samples_split=15`, `min_samples_leaf=6`: Conservative split thresholds.
+- `max_features='sqrt'`: Each tree considers $\sqrt{p}$ features at each split, decorrelating trees.
+- `min_impurity_decrease=0.001`: Prunes splits that do not achieve a minimum information gain.
+
+#### 4.8.4 K-Nearest Neighbours (KNN)
+
+KNN classifies a test point by plurality vote among its k nearest neighbours in the scaled feature space.
+
+**Configuration:**
+- `n_neighbors=51`: A large k (odd to break ties) was selected to smooth decision boundaries and reduce variance. The choice of 51 reflects the large training set size, where smaller k values tend to overfit.
+- `weights='uniform'`: All neighbours contribute equally.
+- `metric='minkowski'`, `p=1`: Manhattan distance (L1 norm), more robust than Euclidean distance for high-dimensional binary feature spaces.
+
+#### 4.8.5 Support Vector Machine – Polynomial Kernel
+
+The polynomial SVM maps inputs into a polynomial feature space and finds the maximum-margin separating hyperplane:
+
+$$K(\mathbf{x}_i, \mathbf{x}_j) = (\mathbf{x}_i \cdot \mathbf{x}_j + r)^d$$
+
+**Configuration:** `degree=2` (quadratic), `C=0.1` (strong regularisation), `gamma='scale'`, `probability=True` (Platt scaling for probability calibration).
+
+#### 4.8.6 Support Vector Machine – RBF Kernel
+
+The RBF kernel maps inputs into an infinite-dimensional feature space through:
+
+$$K(\mathbf{x}_i, \mathbf{x}_j) = \exp\left(-\gamma \|\mathbf{x}_i - \mathbf{x}_j\|^2\right)$$
+
+**Configuration:** `C=0.1`, `gamma='scale'` ($\gamma = 1 / (n_{\text{features}} \times \text{Var}(X))$), `probability=True`. The conservative regularisation (`C=0.1`) was chosen to prioritise generalisation over training fit.
+
+#### 4.8.7 Gaussian Naïve Bayes
+
+GNB applies Bayes' theorem under the assumption that features are conditionally independent given the class label, with Gaussian likelihood for each feature:
+
+$$P(\mathbf{x} \mid y) = \prod_{j=1}^{p} \mathcal{N}(x_j; \mu_{jy}, \sigma_{jy}^2)$$
+
+**Configuration:** `var_smoothing=1e-8` (small additive variance stabilisation to prevent numerical underflow).
+
+#### 4.8.8 Quadratic Discriminant Analysis (QDA)
+
+QDA estimates a class-conditional Gaussian distribution for each class with a separate covariance matrix, yielding a quadratic decision boundary:
+
+$$\delta_k(\mathbf{x}) = -\frac{1}{2}\log|\boldsymbol{\Sigma}_k| - \frac{1}{2}(\mathbf{x}-\boldsymbol{\mu}_k)^T\boldsymbol{\Sigma}_k^{-1}(\mathbf{x}-\boldsymbol{\mu}_k) + \log\pi_k$$
+
+**Configuration:** `reg_param=0.7` (shrinkage regularisation interpolating between class-specific and pooled covariance estimates, preventing singular matrix issues on the moderately sized dataset).
+
+#### 4.8.9 Multilayer Perceptron – Artificial Neural Network (MLP-ANN)
+
+The MLP-ANN is the primary deep learning model in this thesis, representing a fully connected feedforward neural network trained with backpropagation.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║    FIGURE 4.7: MLP-ANN Architecture                             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Input Layer         Hidden Layer 1    Hidden Layer 2   Output
+  (13 neurons)        (32 neurons)      (16 neurons)     Layer (1)
+  ────────────        ────────────      ────────────     ─────────
+
+   x₁ ─────────┐
+   x₂ ─────────┤
+   x₃ ─────────┤       ┌──── h₁₁ ────┐
+   x₄ ─────────┤──── h₁₂  ────┤──── h₂₁ ────┐
+   x₅ ─────────┤  ┌── h₁₃  ────┤  ┌─ h₂₂ ────┤── σ(z) ──► ŷ ∈ [0,1]
+   x₆ ─────────┤  │   ...       │  │   ...     │           (ASD prob.)
+   x₇ ─────────┤  │   h₁₃₂─────┘  │   h₂₁₆───┘
+   x₈ ─────────┘  │                │
+   x₉ ────────────┘                │
+   x₁₀────────────────────────────┘
+   x₁₁
+   x₁₂
+   x₁₃
+
+  Activation:  ReLU  f(z) = max(0, z)    [hidden layers]
+               Logistic (sigmoid)         [output layer]
+  Optimiser:   Adam  (adaptive learning rate)
+  Loss:        Binary Cross-Entropy
+  Max Iter:    200
+  Random seed: 42
+```
+
+**Architectural details:**
+
+| Component | Configuration |
+|---|---|
+| Input layer | 13 neurons (one per feature) |
+| Hidden Layer 1 | 32 neurons, ReLU activation |
+| Hidden Layer 2 | 16 neurons, ReLU activation |
+| Output layer | 1 neuron, Sigmoid activation |
+| Optimiser | Adam (Adaptive Moment Estimation) |
+| Loss function | Binary Cross-Entropy |
+| Max iterations | 200 (with implicit early stopping on convergence) |
+| Weight initialisation | Glorot uniform (scikit-learn default) |
+
+**Backpropagation training procedure:**
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║    FIGURE 4.8: Backpropagation Training Loop                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Initialise weights W randomly
+          │
+          ▼
+  ┌────────────────────────────────┐
+  │   For each epoch t = 1…200:   │
+  │                               │
+  │  1. FORWARD PASS              │
+  │     Input X_train → Layer 1  │
+  │     → ReLU → Layer 2         │
+  │     → ReLU → Output          │
+  │     → Sigmoid → ŷ            │
+  │                               │
+  │  2. COMPUTE LOSS              │
+  │     L = −[y·log(ŷ)           │
+  │         + (1−y)·log(1−ŷ)]    │
+  │                               │
+  │  3. BACKWARD PASS             │
+  │     Compute ∂L/∂W for        │
+  │     each layer via chain rule │
+  │                               │
+  │  4. WEIGHT UPDATE (Adam)      │
+  │     m_t = β₁·m_{t-1}         │
+  │         + (1−β₁)·∂L/∂W       │
+  │     v_t = β₂·v_{t-1}         │
+  │         + (1−β₂)·(∂L/∂W)²   │
+  │     W ← W − α·m̂_t/√v̂_t     │
+  │                               │
+  │  5. CHECK CONVERGENCE         │
+  │     If |ΔL| < tol: STOP      │
+  └────────────────────────────────┘
+          │
+          ▼
+  Final weights W* (trained model)
+```
+
+The Adam optimiser was selected over standard SGD because it adapts the learning rate per-parameter based on first and second moment estimates of gradients, enabling faster and more stable convergence on the moderately sized training set.
+
+---
+
+### 4.9 Phase 7: Model Evaluation Framework
+
+Each trained model was evaluated on the held-out test set using seven complementary performance metrics:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║    FIGURE 4.9: Evaluation Metrics Framework                     ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Confusion Matrix (binary classification):
+  ──────────────────────────────────────────
+                 Predicted:  ASD−    ASD+
+  Actual: ASD−  │    TN    │  FP   │
+          ASD+  │    FN    │  TP   │
+
+  From TN, FP, FN, TP:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Accuracy    = (TP + TN) / (TP + TN + FP + FN)              │
+  │ Precision   = TP / (TP + FP)      [positive predictive val.]│
+  │ Recall      = TP / (TP + FN)      [sensitivity]             │
+  │ Specificity = TN / (TN + FP)      [true negative rate]      │
+  │ F1 Score    = 2 × (Precision × Recall) / (Precision+Recall) │
+  │ ROC-AUC     = Area under the ROC curve                      │
+  │ Log Loss    = −(1/N)Σ[y·log(ŷ)+(1−y)·log(1−ŷ)]           │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+**Metric rationale:**
+- **Recall (Sensitivity)** is the most clinically important metric for a screening tool: a missed ASD-positive case (false negative) is more harmful than an unnecessary referral (false positive).
+- **Specificity** limits unnecessary clinical referrals by quantifying the true negative rate.
+- **ROC-AUC** provides a threshold-independent measure of discriminative power.
+- **Log Loss** penalises confident incorrect predictions, rewarding well-calibrated probability outputs—important for a deployment system that displays probability scores.
+
+#### 4.9.1 Overfitting Analysis
+
+For each model, the overfitting gap is computed as:
+
+$$\text{Gap} = \text{Train Accuracy} - \text{Test Accuracy}$$
+
+and classified according to the following threshold scheme:
+
+| Gap Range | Status |
+|---|---|
+| Gap < 0.02 | No overfitting |
+| 0.02 ≤ Gap < 0.05 | Mild — acceptable |
+| 0.05 ≤ Gap < 0.10 | Moderate — needs justification |
+| Gap ≥ 0.10 | Severe overfitting |
+
+*Table 4.2: Overfitting classification threshold scheme.*
+
+This explicit overfitting reporting framework addresses Research Gap G2 identified in Chapter 3.
+
+---
+
+### 4.10 Phase 8: Model Serialisation
+
+All trained artefacts are serialised to the `models/` directory using Python's `pickle` library, enabling the Streamlit application to load pre-trained models without retraining:
+
+| File | Contents |
+|---|---|
+| `trained_models.pkl` | Dictionary of 8 classical trained model objects |
+| `ann.pkl` | Trained MLP-ANN object |
+| `scaler.pkl` | Fitted StandardScaler (training-set statistics) |
+| `le_dict.pkl` | Per-column LabelEncoder dictionary |
+| `results_df.pkl` | Full results DataFrame (all metrics, all models) |
+| `roc_data.pkl` | ROC curve data (FPR, TPR, AUC) for all 9 models |
+| `metadata.pkl` | Feature names, numeric/categorical column lists |
+
+*Table 4.3: Serialised model artefacts and their contents.*
+
+---
+
+### 4.11 Phase 9: Streamlit Web Application Deployment
+
+The final phase translates the trained and serialised models into a user-accessible web application using the Streamlit framework.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║    FIGURE 4.10: Streamlit Application Architecture              ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  User (Browser)
+       │
+       │  Enters: A1–A10 responses, Age, Sex,
+       │          Jaundice, Family_ASD
+       ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │               Streamlit Web Application                  │
+  │                                                          │
+  │  1. Input Collection (sidebar form)                      │
+  │     → Raw user inputs as strings/numbers                 │
+  │                                                          │
+  │  2. Preprocessing (inference pipeline)                   │
+  │     → Apply le_dict encoders to categorical inputs       │
+  │     → Assemble feature vector as numpy array             │
+  │     → Apply scaler.transform() to feature vector         │
+  │                                                          │
+  │  3. Model Inference                                       │
+  │     → Best classical model: predict() + predict_proba()  │
+  │     → ANN model:            predict() + predict_proba()  │
+  │                                                          │
+  │  4. Output Display                                        │
+  │     → ASD risk classification (Positive / Negative)      │
+  │     → Probability score (0.0 – 1.0)                      │
+  │     → Risk category (Low / Medium / High)                │
+  │                                                          │
+  │  5. Visualisation Dashboard                              │
+  │     → ROC Curve (all 9 models)                           │
+  │     → Performance Bar Chart (Accuracy, F1, AUC)          │
+  │     → Overfitting Analysis Table                         │
+  │     → Confusion Matrix (best model)                      │
+  └──────────────────────────────────────────────────────────┘
+```
+
+The Streamlit application applies the exact same preprocessing transformations used during training—using the serialised `le_dict` and `scaler`—to ensure that inference-time feature representations are identical to training-time representations. This design eliminates training-serving skew, a common source of degraded real-world performance in deployed ML systems.
+
+---
+
+### 4.12 Tools, Libraries, and Environment
+
+| Component | Tool / Library | Version |
+|---|---|---|
+| Programming language | Python | 3.10+ |
+| Data manipulation | pandas, NumPy | 2.x / 1.x |
+| Machine learning | scikit-learn | 1.x |
+| Imbalanced learning | imbalanced-learn | 0.11+ |
+| Neural network | scikit-learn MLPClassifier | — |
+| Visualisation | matplotlib, seaborn | — |
+| Web deployment | Streamlit | 1.x |
+| Model serialisation | pickle | stdlib |
+| Development environment | VS Code | — |
+
+*Table 4.4: Software tools and libraries used in this thesis.*
+
+---
+
+### 4.13 Summary
+
+This chapter presented the complete nine-phase methodology adopted in this thesis, covering dataset description, preprocessing pipeline, stratified train-test splitting, SMOTE-based class imbalance correction, StandardScaler feature normalisation, nine-model training with carefully tuned hyperparameters, seven-metric evaluation with explicit overfitting analysis, pickle-based model serialisation, and Streamlit web deployment. Workflow diagrams (Figures 4.1–4.10) illustrate each phase in detail. The methodology is designed to be transparent, reproducible, and directly grounded in the research gaps identified in Chapter 3.
+
+---
+
 ## References
 
 [1] T. Akter, M. S. I. Satu, M. I. Khan, M. H. Ali, S. Uddin, P. Lio, J. M. Quinn, and M. A. Moni, "Machine learning-based models for early stage detection of autism spectrum disorders," *IEEE Access*, vol. 9, pp. 13357–13377, Jan. 2021, doi: 10.1109/ACCESS.2021.3050935.
