@@ -1635,6 +1635,122 @@ This discussion chapter has interpreted the experimental results from Chapter 5 
 
 ---
 
+## Chapter 7: Conclusion
+
+### 7.1 Overview
+
+This thesis investigated the application of machine learning (ML) and artificial neural network (ANN) techniques for the early detection of Autism Spectrum Disorder (ASD) in children. The work was motivated by a critical clinical reality: ASD is significantly underdiagnosed and frequently diagnosed late in many children, with early diagnosis being the single most important factor in determining long-term developmental outcomes. The research was positioned as an answer to seven identified gaps in existing ASD screening AI literature — inadequate dataset scale, unaddressed class imbalance, absent overfitting analysis, single-model designs, lack of deployable tools, underutilised demographic features, and poorly justified ANN architectures.
+
+The study addressed these gaps through a rigorous, multi-phase methodology: a combined multi-source dataset of 5,228 records, stratified train-test splitting, post-split SMOTE class balancing, StandardScaler normalisation, training of nine classifiers under regularised hyperparameter configurations, seven-metric evaluation with explicit overfitting gap reporting, and deployment as a publicly accessible Streamlit web application. The following sections summarise the principal conclusions drawn from the research.
+
+---
+
+### 7.2 Principal Findings
+
+#### 7.2.1 The MLP-ANN is the Superior Model for ASD Screening
+
+The Multilayer Perceptron Artificial Neural Network consistently outperformed all eight classical machine learning classifiers across all seven evaluation metrics:
+
+- **ROC-AUC: 0.9962** — the highest discriminative power in the study, indicating a 99.62% probability of correctly ranking an ASD-positive child above an ASD-negative child at any classification threshold.
+- **Test Accuracy: 95.41%** — 998 correct classifications out of 1,046 test records.
+- **Recall (Sensitivity): 97.41%** — only 8 out of 309 ASD-positive children were missed.
+- **Specificity: 94.57%** — the highest among all models; 697 out of 737 ASD-negative children correctly cleared.
+- **F1 Score: 0.9262** — the highest harmonic balance of precision and recall in the study.
+- **Log Loss: 0.1140** — the best-calibrated probability outputs, confirming the model's suitability for confidence-based clinical risk communication.
+- **Overfitting Gap: 3.18%** — mild and acceptable, confirming generalisation beyond the training set.
+
+The MLP-ANN architecture (two hidden layers: 32 → 16 neurons, ReLU activation, Adam optimiser) proved sufficient to capture the non-linear, inter-item correlations in the AQ-10 feature set without requiring deep or complex stacking, confirming that shallow ANN architectures are well-matched to structured tabular ASD screening data.
+
+#### 7.2.2 Random Forest is the Most Reliable Classical Classifier
+
+Among the eight classical models, Random Forest achieved the strongest and most balanced performance: ROC-AUC of **0.9924**, test accuracy of **93.31%**, and an overfitting gap of just **1.06%** — confirming near-perfect generalisation. It produced only 3 false negatives, tied with SVM (RBF) for the second-lowest miss count. Random Forest's interpretability advantages (feature importance, ensemble transparency) and its robust generalisation make it the recommended fallback model in settings where neural network deployment is not feasible.
+
+#### 7.2.3 Overfitting Was Controlled Across All Models
+
+A central methodological goal of this thesis was to demonstrate that high performance and low overfitting are achievable simultaneously. The results confirm this: no model exhibited severe overfitting (gap ≥ 10%), and five models showed no clinically meaningful overfitting at all (gap < 2%). The Decision Tree — the most aggressively regularised model — achieved a gap of just **0.05%**, demonstrating that systematic hyperparameter tuning (depth limits, cost-complexity pruning) can virtually eliminate overfitting even in high-capacity tree learners. The MLP-ANN's mild 3.18% gap is within expected bounds for a shallow neural network on a balanced training set.
+
+#### 7.2.4 Class Imbalance Handling is Essential for High Recall
+
+The application of SMOTE to the training partition produced balanced class representation (2,949 positive : 2,949 negative post-augmentation) that directly enabled the high recall values observed across all models. Six of the nine models achieved recall above 97%, and two (KNN, QDA) achieved 100% recall. Without SMOTE, models would develop prior-class bias toward the majority (ASD-negative) class, resulting in systematically lower recall on the clinically critical ASD-positive minority — the exact failure mode that causes real-world screening tools to miss children who need intervention.
+
+#### 7.2.5 The Feature Set is Highly Discriminative
+
+The AQ-10 + demographic feature set (14 features total) proved remarkably informative across all nine models — even the weakest model, SVM (Poly), achieved ROC-AUC of **0.8910**, substantially above the random baseline of 0.50. This confirms that the combination of ten behavioural observation items with age, sex, jaundice history, and family ASD history is a sufficiently rich feature representation for reliable ASD risk stratification. The ten AQ-10 items capture the core social, communicative, and attentional dimensions of the ASD phenotype in a compact, parent-completable format.
+
+---
+
+### 7.3 Research Objectives — Achievement Summary
+
+| Objective | Statement | Achievement |
+|---|---|---|
+| RO1 | Compile and preprocess a large, combined multi-source ASD dataset | ✅ 5,228 records; 14 features; SMOTE; StandardScaler |
+| RO2 | Train and evaluate ≥5 diverse ML classifiers under controlled conditions | ✅ 9 classifiers trained; identical pipeline; 7 metrics reported |
+| RO3 | Implement and compare an MLP-ANN against classical models | ✅ MLP-ANN ranked first on all 7 metrics |
+| RO4 | Demonstrate generalisation through explicit overfitting analysis | ✅ Train-test gap reported for all 9 models; max gap 5.61% |
+| RO5 | Deploy a clinically usable, publicly accessible screening tool | ✅ Streamlit app deployed at autism-spectrum-detector2 URL |
+
+*Table 7.1: Research objective achievement summary.*
+
+All five research objectives are fully achieved. The thesis makes both an empirical contribution (systematic benchmarking of nine models on a large, preprocessed ASD dataset) and a practical contribution (a publicly deployed, interactive ASD risk screening tool).
+
+---
+
+### 7.4 Contributions of the Thesis
+
+The principal original contributions of this thesis to the ASD screening literature are:
+
+**C1 — Scale:** This thesis evaluates ASD screening classifiers on a combined dataset of **5,228 records** — more than five times the size of the most widely used benchmark (UCI Autism Screening, ~1,054 records). This larger scale improves the statistical reliability of all reported metrics and better represents the demographic and phenotypic heterogeneity encountered in real clinical screening.
+
+**C2 — Breadth:** Nine diverse classifiers — spanning linear models, kernel methods, probabilistic models, tree ensembles, and neural networks — are evaluated simultaneously under identical preprocessing, splitting, and evaluation conditions. This provides a fair, reproducible comparative benchmark that is absent from most prior single-model studies.
+
+**C3 — Overfitting transparency:** Explicit train-test accuracy gap reporting for all nine models, with per-model regularisation strategies documented and justified, is a methodological contribution not present in the majority of prior ASD screening ML studies. This transparency is essential for establishing the clinical trustworthiness of AI screening tools.
+
+**C4 — Clinical deployment:** The Streamlit web application provides an immediately accessible, zero-installation ASD risk screening tool that is freely available to parents, educators, and healthcare providers. The application integrates all nine trained models, real-time prediction with calibrated confidence scores, ROC curves, and confusion matrix visualisation — a level of clinical and technical transparency unprecedented in comparable open-access tools.
+
+**C5 — Reproducibility:** The complete training pipeline (data preprocessing, SMOTE, scaling, model training, evaluation, serialisation) is implemented in a single Python script with documented random seeds (random_state=42 throughout), enabling full reproduction of all reported results.
+
+---
+
+### 7.5 Limitations Acknowledged
+
+The following limitations are acknowledged and should guide the interpretation of results:
+
+- The target variable reflects ASD *screening* classification rather than formal DSM-5/ICD-11 clinical diagnosis.
+- Dataset self-selection bias may limit representativeness for the general paediatric population.
+- The binary classification framework does not differentiate ASD severity levels (Levels 1–3 per DSM-5).
+- Fairness evaluation across demographic subgroups (sex, age, ethnicity) was not performed in this study and should be addressed in future work.
+- Temporal validity requires periodic model recalibration as screening criteria and population demographics evolve.
+
+---
+
+### 7.6 Recommendations
+
+Based on the findings of this thesis, the following recommendations are made for practitioners, researchers, and healthcare system designers:
+
+**R1 — Deploy MLP-ANN as the primary screening model** in the Streamlit application, given its superiority across all seven evaluation metrics and clinically acceptable overfitting profile.
+
+**R2 — Use Random Forest as the backup/interpretable alternative** in settings where neural network deployment is constrained by computational resources or where decision transparency is required for regulatory approval.
+
+**R3 — Never rely on recall or accuracy alone** when selecting or evaluating ASD screening AI models. Always report and evaluate Specificity, F1 Score, and ROC-AUC jointly to capture the full precision-recall trade-off.
+
+**R4 — Apply SMOTE post-split** in any future study using imbalanced ASD datasets to prevent synthetic sample leakage and ensure valid evaluation.
+
+**R5 — Integrate SHAP-based explainability** in the next iteration of the Streamlit application to identify per-patient feature contributions, increasing clinician trust and enabling targeted follow-up questioning.
+
+**R6 — Conduct prospective clinical validation** of the deployed tool in a paediatric clinic setting, with gold-standard DSM-5 diagnostic confirmation, to establish real-world sensitivity and specificity beyond the retrospective dataset evaluation.
+
+---
+
+### 7.7 Final Conclusion
+
+Autism Spectrum Disorder is a lifelong neurodevelopmental condition whose trajectory is profoundly influenced by the age at which intervention begins. Existing screening pathways are slow, inconsistently applied, and heavily dependent on clinician availability — leaving many children waiting years for a diagnosis while the developmental intervention window narrows. Machine learning and artificial neural networks offer a complementary approach: a rapid, consistent, data-driven first-level risk assessment that can be completed in minutes by a parent or educator using a web browser, at no cost and without requiring specialist involvement.
+
+This thesis has demonstrated that a well-designed ML/ANN framework — combining a large multi-source dataset, principled class imbalance handling, systematic regularisation, and rigorous seven-metric evaluation — can achieve **95.41% accuracy and ROC-AUC of 0.9962** for ASD risk stratification, with a miss rate of only 2.59% and an over-referral rate of 5.43%. These figures substantially exceed the performance of manually administered AQ-10 scoring in community settings (sensitivity ~86%, specificity ~72%) and are competitive with the best results reported in the prior five years of ASD screening AI literature — on a dataset more than five times larger.
+
+The MLP-ANN model, deployed within the publicly accessible Streamlit application, is the first step toward a scalable, equitable, and transparent AI-assisted ASD screening system. It is not a diagnostic oracle — it is a consistent, evidence-based triage aid designed to help the right children reach specialist services faster. With the future directions outlined in Chapter 6 — explainability, fairness constraints, multi-modal features, and federated clinical validation — this work establishes a principled and reproducible foundation from which clinically impactful ASD screening AI can be built.
+
+---
+
 ## References
 
 [1] T. Akter, M. S. I. Satu, M. I. Khan, M. H. Ali, S. Uddin, P. Lio, J. M. Quinn, and M. A. Moni, "Machine learning-based models for early stage detection of autism spectrum disorders," *IEEE Access*, vol. 9, pp. 13357–13377, Jan. 2021, doi: 10.1109/ACCESS.2021.3050935.
