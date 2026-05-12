@@ -4,8 +4,9 @@
 
 ---
 
-**Author:** Raj Kumar Thakur  
-**Email:** rajkshiva59@gmail.com  
+**Author:** Mrs. Chhayachabbi Jha  
+**Thesis Supervisor:** Prof. Raj Kumar Thakur
+**Email of Thesis Supervisor:** rajkshiva1@gmail.com  
 **Date:** May 2026
 
 ---
