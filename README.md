@@ -7,7 +7,7 @@ A Machine Learning and Artificial Neural Network (ANN) based system to predict t
 
 ## 👤 Authors
 **Mrs. Chhayachabbi Jha **
-**Raj Kumar Thakur** (Thesis Supervisor) 
+** Prof. Raj Kumar Thakur** (Thesis Supervisor) 
 Email: rajkshiva59@gmail.com  
 GitHub: [rajaramayan](https://github.com/rajaramayan)
 
