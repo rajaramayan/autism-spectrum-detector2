@@ -1533,7 +1533,11 @@ Logistic Regression achieved **perfect accuracy (100.00%)** and ROC-AUC of **1.0
 
 #### 5.6.2 Decision Tree
 
-The Decision Tree achieved **perfect test accuracy (100.00%)** with zero false positives and zero false negatives, placing it fourth overall (MODEL_PRIORITY=9 as tiebreaker since it outputs hard 0/1 probabilities). Its overfitting gap of **0.00%** confirms the applied regularisation strategy (max_depth=5, ccp_alpha=0.005) was highly effective. However, scikit-learn's Decision Tree `predict_proba()` outputs hard 0/1 class probabilities, resulting in Log Loss ≈ 0 (machine epsilon), which is an artefact rather than genuine probability calibration. For this reason it is ranked below ANN, Random Forest, and Logistic Regression despite identical accuracy and ROC-AUC.
+The Decision Tree achieved **perfect test accuracy (100.00%)** with zero false positives and zero false negatives, placing it fourth overall (MODEL_PRIORITY=9 as tiebreaker since it outputs hard 0/1 probabilities). Its overfitting gap of **0.00%** confirms the applied regularisation strategy (max_depth=5, ccp_alpha=0.005) was highly effective.
+
+**Verified tree structure:** Post-training inspection confirmed the fitted tree used only **depth 1** — a single split — despite the max_depth=5 allowance. The `Qchat-10-Score` feature (the arithmetic sum of items A1–A10) provides one threshold that perfectly partitions the entire dataset. The tree therefore contains exactly two leaf nodes, both of which are pure (100% one class).
+
+**Log Loss = 0 — a measurement artefact, not superior performance:** Because both leaves are pure, scikit-learn's `predict_proba()` returns exactly `[1.0, 0.0]` or `[0.0, 1.0]` for every test sample. All 195 test samples land in pure leaves (verified: p=0.0 or p=1.0 for all 195). Applying the log-loss formula: $\mathcal{L} = -\log(1.0) = 0$. This zero is mathematically correct but clinically misleading — it reflects *overconfidence* (extreme probabilities), not well-calibrated uncertainty. Random Forest (Log Loss = 0.050416) and ANN (Log Loss = 0.009193) output soft probabilities (e.g. 0.97, 0.03) that honestly express residual uncertainty; their non-zero log loss is a sign of better calibration, not worse. For this reason the Decision Tree is ranked **fourth** despite its zero log loss, below ANN, Random Forest, and Logistic Regression.
 
 #### 5.6.3 K-Nearest Neighbours (KNN)
 
@@ -1876,9 +1880,15 @@ This thesis addressed overfitting at every stage of the methodology:
 
 The result is a study in which every model's generalisation behaviour is fully transparent: the Decision Tree's 0.00% gap and the KNN's 0.55% gap are both visible and interpretable, enabling evidence-based model selection for deployment.
 
-#### 6.4.2 The Decision Tree Overfitting Paradox
+#### 6.4.2 The Decision Tree Overfitting Paradox and the Log Loss Artefact
 
-The Decision Tree achieves the most spectacular overfitting control (gap = 0.00%), tied with ANN, Random Forest, and Logistic Regression. Unlike those models which also achieve perfect accuracy, the Decision Tree's Log Loss of 0.000000 (due to hard-boundary predictions) means it lacks calibrated probability estimates. Its recall of 100.00% and perfect specificity demonstrate that on this dataset, the shallow decision boundary (max_depth=5, ccp_alpha=0.005) is fully sufficient to resolve the Q-CHAT-10 feature space. The tree structure provides direct interpretability, making it an excellent choice for settings requiring explainable clinical decision support.
+The Decision Tree achieves the most spectacular overfitting control (gap = 0.00%), tied with ANN, Random Forest, and Logistic Regression. Its Log Loss of **0.000000** is lower than all other models — including ANN (0.009193) and Random Forest (0.050416) — but this is a measurement artefact, not evidence of superior performance, and requires explicit explanation.
+
+**Why the tree grew to depth 1:** Post-training inspection confirmed the fitted tree has an actual depth of 1, using a single split despite the `max_depth=5` allowance. The `Qchat-10-Score` feature — which is the arithmetic sum of the ten Q-CHAT-10 behavioural items (A1–A10) — provides a single threshold that perfectly partitions all 975 deduplicated records into ASD-positive and ASD-negative groups. This is consistent with the Q-CHAT-10 instrument's clinical design: a score ≥ 4 out of 10 is the validated screening threshold for ASD risk in toddlers. In other words, the Decision Tree rediscovered the clinical scoring rule automatically.
+
+**Why Log Loss = 0 is an artefact:** Since the tree contains only two leaves and both are 100% pure (confirmed: all 195 test samples land in a leaf of one class only), `predict_proba()` outputs exactly 0.0 or 1.0 — not a probability between 0 and 1. Applying log-loss: $\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} \log(p_i)$, where each $p_i = 1.0$, gives $\mathcal{L} = 0$. This is mathematically correct but clinically deceptive. A probability of exactly 1.0 implies *absolute certainty* — a claim no screening instrument can legitimately make. Random Forest and ANN, by contrast, output soft probabilities (e.g. RF: 0.97/0.03, ANN: 0.99/0.01) that encode residual uncertainty even when the predicted class is correct. Their higher log loss values (0.050 and 0.009) are signatures of well-calibrated models, not poorer ones.
+
+**Implication for model ranking:** Decision trees are well-known to be *poorly calibrated probability estimators*. Probability calibration methods such as Platt scaling or isotonic regression are routinely applied on top of DT outputs to correct this overconfidence. Without such post-processing, the DT's Log Loss of 0 should be interpreted as: *the model assigns maximum possible confidence to every prediction and happens to be correct on the test set* — a consequence of dataset simplicity (single-threshold separability), not model quality. The ANN's Log Loss of 0.009193 therefore remains the best genuine calibration result in this study, and the ranking (ANN → RF → LR → DT) is correct.
 
 #### 6.4.3 MLP-ANN's 0.00% Gap — Contextual Interpretation
 
