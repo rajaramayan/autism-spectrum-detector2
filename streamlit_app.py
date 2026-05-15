@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 import os
-from pathlib import Path
-
-MODELS_DIR = "models"
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -21,10 +18,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier
 
 from imblearn.over_sampling import SMOTE
+
+MODELS_DIR = "models"
 
 # Import TensorFlow only when needed (lazy loading)
 
