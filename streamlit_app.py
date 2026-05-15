@@ -51,7 +51,8 @@ page = st.sidebar.radio(
 @st.cache_data
 def load_data():
     """Load the CSV dataset - cached for performance"""
-    df = pd.read_csv("Autism_Screening_Data_Combined.csv")
+    df = pd.read_csv("Toddler Autism dataset July 2018.csv")
+    df.drop(columns=['Case_No'], inplace=True)
     return df
 
 @st.cache_data
@@ -356,13 +357,22 @@ elif page == "🤖 Model Training":
         # Display results if available
         if 'results_df' in st.session_state:
             st.subheader("📈 Model Performance Results")
-            
-            results_sorted = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+
+            MODEL_PRIORITY = {
+                "ANN": 1, "Random Forest": 2, "Logistic Regression": 3,
+                "SVM (RBF)": 4, "QDA": 5, "KNN": 6,
+                "Naive Bayes": 7, "SVM (Poly)": 8, "Decision Tree": 9
+            }
+            _df = st.session_state.results_df.copy()
+            _df["_priority"] = _df["Model"].map(MODEL_PRIORITY).fillna(10)
+            results_sorted = _df.sort_values(
+                by=["ROC-AUC", "_priority"], ascending=[False, True]
+            ).drop(columns=["_priority"]).reset_index(drop=True)
             st.dataframe(results_sorted.style.highlight_max(axis=0), use_container_width=True)
-            
+
             # Best model
             best_model = results_sorted.iloc[0]
-            st.success(f"🏆 Best Model: **{best_model['Model']}** with ROC-AUC: {best_model['ROC-AUC']:.4f}")
+            st.success(f"🏆 Best Model: **{best_model['Model']}** with ROC-AUC: {best_model['ROC-AUC']:.4f} | Log Loss: {best_model['Log Loss']:.6f}")
 
             # Overfitting Gap Table
             st.subheader("📊 Overfitting Analysis (Train vs Test Accuracy Gap)")
@@ -443,8 +453,17 @@ elif page == "🔮 Make Prediction":
                 
                 with col1:
                     st.subheader("Classical Model Predictions")
-                    # Get best classical model
-                    results_sorted = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+                    # Get best classical model (ranked by ROC-AUC, then model priority)
+                    MODEL_PRIORITY = {
+                        "ANN": 1, "Random Forest": 2, "Logistic Regression": 3,
+                        "SVM (RBF)": 4, "QDA": 5, "KNN": 6,
+                        "Naive Bayes": 7, "SVM (Poly)": 8, "Decision Tree": 9
+                    }
+                    _df2 = st.session_state.results_df.copy()
+                    _df2["_priority"] = _df2["Model"].map(MODEL_PRIORITY).fillna(10)
+                    results_sorted = _df2.sort_values(
+                        by=["ROC-AUC", "_priority"], ascending=[False, True]
+                    ).drop(columns=["_priority"])
                     best_classical = results_sorted[results_sorted['Model'] != 'ANN'].iloc[0]
                     
                     best_model = st.session_state.trained_models[best_classical['Model']]
@@ -479,7 +498,16 @@ elif page == "📊 Model Comparison":
         st.warning("⚠️ Please train the models first on the 'Model Training' page")
     else:
         try:
-            results_df = st.session_state.results_df.sort_values(by="ROC-AUC", ascending=False)
+            _df3 = st.session_state.results_df.copy()
+            MODEL_PRIORITY = {
+                "ANN": 1, "Random Forest": 2, "Logistic Regression": 3,
+                "SVM (RBF)": 4, "QDA": 5, "KNN": 6,
+                "Naive Bayes": 7, "SVM (Poly)": 8, "Decision Tree": 9
+            }
+            _df3["_priority"] = _df3["Model"].map(MODEL_PRIORITY).fillna(10)
+            results_df = _df3.sort_values(
+                by=["ROC-AUC", "_priority"], ascending=[False, True]
+            ).drop(columns=["_priority"]).reset_index(drop=True)
             roc_data = st.session_state.roc_data
             
             # Tabs for different visualizations
@@ -492,17 +520,28 @@ elif page == "📊 Model Comparison":
             with tab2:
                 st.subheader("ROC Curve Comparison")
                 fig, ax = plt.subplots(figsize=(10, 8))
-                
-                for name, fpr, tpr, auc in roc_data:
-                    ax.plot(fpr, tpr, label=f"{name} (AUC={auc:.4f})", linewidth=2)
-                
+
+                line_styles = ['-', '--', ':', '-.', '-', '--', ':', '-.', '-']
+                colors = plt.cm.tab10(np.linspace(0, 0.9, 9))
+                fpr_grid = np.linspace(0, 1, 300)
+
+                for i, (name, fpr, tpr, auc) in enumerate(roc_data):
+                    # Use first occurrence of each FPR value so curves start at (0,0)
+                    _, first_idx = np.unique(fpr, return_index=True)
+                    tpr_smooth = np.interp(fpr_grid, fpr[first_idx], tpr[first_idx])
+                    ax.plot(fpr_grid, tpr_smooth,
+                            label=f"{name} (AUC={auc:.4f})",
+                            linewidth=2,
+                            linestyle=line_styles[i % len(line_styles)],
+                            color=colors[i])
+
                 ax.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
                 ax.set_xlabel("False Positive Rate", fontsize=12)
                 ax.set_ylabel("True Positive Rate", fontsize=12)
                 ax.set_title("ROC Curve Comparison (All Models)", fontsize=14, fontweight='bold')
                 ax.legend(loc='lower right')
                 ax.grid(alpha=0.3)
-                
+
                 st.pyplot(fig)
             
             with tab3:

@@ -30,7 +30,8 @@ MODELS_DIR = "models"
 # ==========================================
 # 2. LOAD DATASET
 # ==========================================
-df = pd.read_csv("Autism_Screening_Data_Combined.csv")
+df = pd.read_csv("Toddler Autism dataset July 2018.csv")
+df.drop(columns=['Case_No'], inplace=True)
 
 print("Shape:", df.shape)
 print(df.info())
@@ -173,7 +174,19 @@ roc_data.append(("ANN", fpr_ann, tpr_ann, roc_auc))
 # 10. CREATE RESULTS DATAFRAME
 # ==========================================
 results_df = pd.DataFrame(results, columns=columns)
-results_df_sorted = results_df.sort_values(by="ROC-AUC", ascending=False)
+
+# Rank by ROC-AUC, then by explicit model priority when tied.
+# ANN ranks first among tied models (best soft-probability calibration);
+# Decision Tree ranks last (outputs hard 0/1 probabilities — overconfident).
+MODEL_PRIORITY = {
+    "ANN": 1, "Random Forest": 2, "Logistic Regression": 3,
+    "SVM (RBF)": 4, "QDA": 5, "KNN": 6,
+    "Naive Bayes": 7, "SVM (Poly)": 8, "Decision Tree": 9
+}
+results_df["_priority"] = results_df["Model"].map(MODEL_PRIORITY).fillna(10)
+results_df_sorted = results_df.sort_values(
+    by=["ROC-AUC", "_priority"], ascending=[False, True]
+).drop(columns=["_priority"]).reset_index(drop=True)
 
 print("\nFinal Model Comparison:\n")
 print(results_df_sorted.to_string(index=False))
@@ -195,9 +208,20 @@ print(gap_df.to_string(index=False))
 # ==========================================
 # 12. ROC CURVE (ALL MODELS)
 # ==========================================
+line_styles = ['-', '--', ':', '-.', '-', '--', ':', '-.', '-']
+colors = plt.cm.tab10(np.linspace(0, 0.9, 9))
+fpr_grid = np.linspace(0, 1, 300)
+
 plt.figure(figsize=(10, 8))
-for name, fpr, tpr, auc in roc_data:
-    plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.4f})", linewidth=2)
+for i, (name, fpr, tpr, auc) in enumerate(roc_data):
+    # Keep only first occurrence of each FPR value so the curve starts at (0,0)
+    _, first_idx = np.unique(fpr, return_index=True)
+    tpr_smooth = np.interp(fpr_grid, fpr[first_idx], tpr[first_idx])
+    plt.plot(fpr_grid, tpr_smooth,
+             label=f"{name} (AUC={auc:.4f})",
+             linewidth=2,
+             linestyle=line_styles[i % len(line_styles)],
+             color=colors[i])
 plt.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate")
@@ -272,5 +296,5 @@ metadata = {
 with open(os.path.join(MODELS_DIR, "metadata.pkl"), "wb") as f:
     pickle.dump(metadata, f)
 
-print(f"\n✅ All models and artifacts saved to '{MODELS_DIR}/' folder.")
-print("   You can now run the Streamlit app — it will load these pre-trained models.")
+print(f"\nAll models and artifacts saved to '{MODELS_DIR}/' folder.")
+print("   You can now run the Streamlit app -- it will load these pre-trained models.")

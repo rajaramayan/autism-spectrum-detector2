@@ -24,7 +24,7 @@ This project trains and evaluates multiple ML models and an ANN on ASD screening
 ```
 ├── ASD in Children using Machine Learning and ANN (1).py   # Local training script
 ├── streamlit_app.py                                         # Streamlit web app
-├── Autism_Screening_Data_Combined.csv                       # Dataset (6075 records)
+├── Toddler Autism dataset July 2018.csv                           # Dataset (1054 records)
 ├── models/                                                  # Saved model artifacts
 │   ├── trained_models.pkl                                   # All 8 ML models
 │   ├── ann.pkl                                              # ANN (MLPClassifier)
@@ -60,17 +60,18 @@ This project trains and evaluates multiple ML models and an ANN on ASD screening
 
 | Model | Accuracy | F1 Score | ROC-AUC | Overfitting |
 |---|---|---|---|---|
-| **ANN** | **95.41%** | **0.9262** | **0.9962** | Mild |
-| Random Forest | 93.31% | 0.8974 | 0.9924 | None |
-| Logistic Regression | 90.92% | 0.8652 | 0.9749 | None |
-| SVM (RBF) | 89.68% | 0.8500 | 0.9805 | Mild |
-| Naive Bayes | 89.01% | 0.8409 | 0.9638 | None |
-| Decision Tree | 87.48% | 0.8065 | 0.9358 | None |
-| QDA | 86.62% | 0.8153 | 0.9716 | Mild |
-| KNN | 83.56% | 0.7823 | 0.9800 | Moderate |
-| SVM (Poly) | 77.34% | 0.6934 | 0.8910 | Mild |
+| **Logistic Regression** | **100.00%** | **1.0000** | **1.0000** | None |
+| **Decision Tree** | **100.00%** | **1.0000** | **1.0000** | None |
+| **Random Forest** | **100.00%** | **1.0000** | **1.0000** | None |
+| **ANN** | **100.00%** | **1.0000** | **1.0000** | None |
+| SVM (RBF) | 97.95% | 0.9857 | 0.9994 | None |
+| QDA | 96.92% | 0.9781 | 0.9978 | None |
+| KNN | 95.38% | 0.9663 | 0.9980 | None |
+| Naive Bayes | 94.36% | 0.9617 | 0.9905 | Mild |
+| SVM (Poly) | 69.74% | 0.7354 | 0.8781 | Moderate |
 
-> **Best Model: ANN** — ROC-AUC: 0.9962, Accuracy: 95.41%
+> **Best Models: Logistic Regression, Decision Tree, Random Forest, ANN** — ROC-AUC: 1.0000, Accuracy: 100.00%  
+> Dataset: `Toddler Autism dataset July 2018.csv` (1,054 records)
 
 ---
 
@@ -106,10 +107,10 @@ Go to **🤖 Model Training** → click **📂 Load Pre-trained Models**.
 
 ## 🧪 Dataset
 
-- **File:** `Autism_Screening_Data_Combined.csv`
-- **Records:** 6,075
-- **Features:** 14 (A1–A10 screening questions, Age, Sex, Jaundice, Family ASD history)
-- **Target:** `Class` (ASD Positive / Negative)
+- **File:** `Toddler Autism dataset July 2018.csv`
+- **Records:** 1,054 (toddlers)
+- **Features:** 18 (A1–A10 screening questions, Age_Mons, Qchat-10-Score, Sex, Ethnicity, Jaundice, Family_mem_with_ASD, Who completed the test)
+- **Target:** `Class/ASD Traits` (Yes / No)
 - **Imbalance handling:** SMOTE (Synthetic Minority Over-sampling Technique)
 
 ---
