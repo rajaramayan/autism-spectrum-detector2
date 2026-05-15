@@ -223,6 +223,7 @@ def train_ann(X_train_scaled, X_test_scaled, y_train, y_test):
 
     return ann, [train_acc, acc, gap, prec, rec, specificity, f1, roc_auc, logloss], (fpr_ann, tpr_ann, roc_auc), None
 
+
 # ==========================================
 # PAGE 1: HOME
 # ==========================================
@@ -371,7 +372,10 @@ elif page == "🤖 Model Training":
 
             # Best model
             best_model = results_sorted.iloc[0]
-            st.success(f"🏆 Best Model: **{best_model['Model']}** with ROC-AUC: {best_model['ROC-AUC']:.4f} | Log Loss: {best_model['Log Loss']:.6f}")
+            msg = (f"🏆 Best Model: **{best_model['Model']}** "
+                   f"with ROC-AUC: {best_model['ROC-AUC']:.4f} "
+                   f"| Log Loss: {best_model['Log Loss']:.6f}")
+            st.success(msg)
 
             # Overfitting Gap Table
             st.subheader("📊 Overfitting Analysis (Train vs Test Accuracy Gap)")
@@ -442,7 +446,7 @@ elif page == "🔮 Make Prediction":
                     val = user_input[f]
                     try:
                         input_values.append(float(val))
-                    except:
+                    except (ValueError, TypeError):
                         input_values.append(val)
                 
                 input_array = np.array(input_values).reshape(1, -1).astype(float)
@@ -478,7 +482,7 @@ elif page == "🔮 Make Prediction":
                     ann_prob = st.session_state.ann.predict_proba(input_scaled)[0][1]
                     ann_pred = 1 if ann_prob > 0.5 else 0
                     
-                    st.write(f"**Model:** Artificial Neural Network")
+                    st.write("**Model:** Artificial Neural Network")
                     st.write(f"**Prediction:** {'🔴 ASD Positive' if ann_pred == 1 else '🟢 ASD Negative'}")
                     st.write(f"**Confidence:** {ann_prob*100:.2f}%")
         
@@ -510,7 +514,10 @@ elif page == "📊 Model Comparison":
             roc_data = st.session_state.roc_data
             
             # Tabs for different visualizations
-            tab1, tab2, tab3, tab4, tab5 = st.tabs(["Performance Metrics", "ROC Curves", "Bar Chart", "Model Ranking", "Confusion Matrices"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "Performance Metrics", "ROC Curves", "Bar Chart",
+                "Model Ranking", "Confusion Matrices"
+            ])
             
             with tab1:
                 st.subheader("Detailed Metrics Table")
@@ -563,8 +570,10 @@ elif page == "📊 Model Comparison":
                 fig, ax = plt.subplots(figsize=(10, 6))
                 
                 sorted_results = results_df.sort_values("ROC-AUC", ascending=True)
-                colors = ['#2ecc71' if i == len(sorted_results) - 1 else '#3498db' 
-                         for i in range(len(sorted_results))]
+                colors = [
+                    '#2ecc71' if i == len(sorted_results) - 1 else '#3498db'
+                    for i in range(len(sorted_results))
+                ]
                 
                 ax.barh(sorted_results['Model'], sorted_results['ROC-AUC'], color=colors)
                 ax.set_xlabel("ROC-AUC Score", fontsize=12)
